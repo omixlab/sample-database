@@ -1,0 +1,45 @@
+{
+  "type": "array",
+  "description": "Validation report array corresponding to the extracted antimicrobial peptides.",
+  "items": {
+    "type": "object",
+    "properties": {
+      "peptide_name": {
+        "type": "string",
+        "description": "Identifier of the evaluated peptide."
+      },
+      "validation_status": {
+        "type": "string",
+        "enum": ["PASS", "FAIL", "REVIEW_REQUIRED"],
+        "description": "Overall integrity status. FAIL for structural/type errors. REVIEW_REQUIRED for biological implausibility."
+      },
+      "critical_errors": {
+        "type": "array",
+        "description": "Violations of schema types, internal logic, or missing required fields.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "field_path": { "type": "string", "description": "JSON path to the failing field (e.g., 'physicochemical_properties.length')." },
+            "error_type": { "type": "string", "enum": ["TYPE_MISMATCH", "MISSING_REQUIRED", "OUT_OF_BOUNDS", "SYNTAX_ERROR", "LOGIC_CONFLICT"] },
+            "message": { "type": "string", "description": "Concise description of the failure." }
+          },
+          "required": ["field_path", "error_type", "message"]
+        }
+      },
+      "logical_warnings": {
+        "type": "array",
+        "description": "Biologically improbable values or formatting anomalies that do not explicitly violate the schema.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "field_path": { "type": "string" },
+            "warning_type": { "type": "string", "enum": ["BIOLOGICAL_OUTLIER", "UNIT_ANOMALY", "HELM_AMBIGUITY"] },
+            "message": { "type": "string" }
+          },
+          "required": ["field_path", "warning_type", "message"]
+        }
+      }
+    },
+    "required": ["peptide_name", "validation_status", "critical_errors", "logical_warnings"]
+  }
+}

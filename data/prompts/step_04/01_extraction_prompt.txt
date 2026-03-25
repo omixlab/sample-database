@@ -1,13 +1,20 @@
-"Systematically parse this document to extract physicochemical properties and biological activities of antimicrobial peptides (AMPs). Strict adherence to the provided JSON schema is mandatory.
+SYSTEM INSTRUCTION:
+Execute deterministic data extraction from the provided scientific document (paper/patent) into the exact JSON schema provided.
 
-Execution rules:
+EXECUTION PROTOCOLS:
 
-    Extract explicit data only. Do not infer, calculate, or hallucinate missing values.
+    OUTPUT FORMAT: Raw JSON only. Zero markdown formatting, zero backticks, zero preamble, zero postscript.
 
-    If a specific field is absent in the source text, output null.
+    SCHEMA ADHERENCE: Strict. Do not add keys. Adhere perfectly to specified enums, data types, and nesting structures.
 
-    Distinguish between computationally predicted and experimentally validated data; prioritize experimental data when both exist.
+    NULL ENFORCEMENT: Assign null to any field not explicitly defined in the source text. Zero inference, estimation, or calculation of missing physicochemical properties (e.g., do not calculate molecular weight from sequence).
 
-    Extract units exactly as written in the source text.
+    SPECIES NAMES: Always use the full taxonomic name for species, without abbreviations.
 
-    Do not include markdown formatting, explanations, or conversational text in the output. Return only the parsed JSON object."
+    DATA HIERARCHY: Isolate the target peptide. Prioritize experimental data from Results/Tables over computational predictions, claims, or background literature references.
+
+    METRIC NORMALIZATION: Extract biological activity strictly as MIC, IC50, EC50, or Growth Inhibition (%). Translate non-English text to English. Map synonymous metric terms only if mathematically identical. Extract units exactly as written in source, provided they match the schema enums.
+
+    TARGET SPECIFICITY: Extract the specific organism, strain, or cell line exactly as written (e.g., "S. aureus ATCC 25923"). Do not generalize.
+
+    HELM SYNTHESIS: Generate the peptide_sequence_HELM_format algorithmically derived from the extracted peptide_sequence and post_translational_modifications. Represent terminal modifications (amidation/acetylation), non-natural amino acids, and cross-links (disulfide bridges via target_position) using valid HELM V1.0 syntax.

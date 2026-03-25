@@ -1,46 +1,126 @@
 {
+  "type": "array",
+  "description": "A collection of bioactive peptides extracted from scientific literature or databases, including detailed structural, chemical, and functional annotations.",
+  "items": {
     "type": "object",
     "properties": {
-        "peptide_name": {"type": "string"},
-        "source_organism": {"type": "string"},
-        "sequence": {"type": "string"},
-        "physicochemical_properties": {
-            "type": "object",
-            "properties": {
-                "length": {"type": "integer"},
-                "molecular_weight": {"type": "number"},
-                "net_charge": {"type": "number"},
-                "hydrophobicity": {"type": "number"},
-                "secondary_structure": {
-                    "type": "string",
-                    "enum": ["alpha-helix", "beta-sheet", "mixed", "linear", "cyclic", "unknown"]
-                }
-            }
-        },
-        "biological_activities": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "activity_type": {
-                        "type": "string",
-                        "enum": ["antibacterial", "antifungal", "antiviral", "antiparasitic", "anticancer", "antibiofilm", "anti-inflammatory", "other"]
-                    },
-                    "target_organism_or_cell": {"type": "string"},
-                    "mic_value": {"type": "number"},
-                    "mic_unit": {"type": "string"}
-                },
-                "required": ["activity_type", "target_organism_or_cell", "activity_value", "activity_unit"]
-            }
-        },
-        "mechanism_of_action": {"type": "string"},
-        "toxicity_profile": {
-            "type": "object",
-            "properties": {
-                "hemolysis": {"type": "string"},
-                "cytotoxicity": {"type": "string"}
-            }
+      "peptide_name": { 
+        "type": "string",
+        "description": "The common or systematic name of the peptide (e.g., Magainin 2, LL-37)." 
+      },
+      "source_organism": { 
+        "type": "string", 
+        "description": "The biological species from which the peptide was originally isolated or identified (e.g., Xenopus laevis)."
+      },
+      "peptide_sequence": { 
+        "type": "string", 
+        "description": "The primary amino acid sequence using standard one-letter IUPAC codes. Example: 'GIGKFLHSAKKFGKAFVGEIMNS'." 
+      },
+      "peptide_sequence_HELM_format": { 
+        "type": "string", 
+        "description": "The Hierarchical Editing Language for Macromolecules (HELM) notation, used to represent complex structures including non-natural amino acids and branching. Example: 'PEPTIDE1{G.I.G.K.F.L.H.S.A.K.K.F.G.K.A.F.V.G.E.I.M.N.S}$$$$V1.0'." 
+      },
+      "physicochemical_properties": {
+        "type": "object",
+        "description": "Calculated or experimental physical and chemical characteristics of the peptide.",
+        "properties": {
+          "length": { "type": "integer", "description": "Total count of amino acid residues." },
+          "molecular_weight": { "type": "number", "description": "The mass of the peptide in Daltons (Da)." },
+          "net_charge": { "type": "number", "description": "The total electrical charge of the peptide at physiological pH (7.4)." },
+          "hydrophobicity": { "type": "number", "description": "The relative hydrophobicity index (e.g., Wimley-White scale or GRAVY score)." },
+          "secondary_structure": {
+            "type": "string",
+            "enum": ["alpha-helix", "beta-sheet", "mixed", "linear", "cyclic", "unknown"],
+            "description": "The predominant spatial conformation of the peptide backbone."
+          }
         }
+      },
+      "post_translational_modifications": {
+        "type": "array",
+        "description": "List of covalent modifications occurring after protein biosynthesis.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "modification_type": { 
+              "type": "string", 
+              "description": "The specific chemical modification (e.g., C-terminal amidation, N-terminal acetylation, Disulfide bond, Phosphorylation)." 
+            },
+            "position": { 
+              "type": "integer", 
+              "description": "The 1-based index of the modified amino acid residue within the sequence." 
+            },
+            "residue": { 
+              "type": "string", 
+              "description": "The three-letter code of the amino acid being modified (e.g., 'Cys', 'Ser')." 
+            },
+            "target_position": { 
+              "type": "integer", 
+              "description": "For cross-links like disulfide bridges, the position of the second residue involved in the bond." 
+            }
+          },
+          "required": ["modification_type", "position"]
+        }
+      },
+      "biological_activities": {
+        "type": "array",
+        "description": "Quantitative data regarding the peptide's effectiveness against specific targets.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "activity_group": {
+              "type": "string",
+              "enum": ["antibacterial", "antifungal", "antiviral", "antiparasitic", "anticancer", "antibiofilm", "anti-inflammatory", "other"],
+              "description": "The functional category of the biological effect."
+            },
+            "target_organism_or_cell": { 
+              "type": "string", 
+              "description": "The specific strain, species, or cell line tested (e.g., E. coli ATCC 25922, HeLa cells)." 
+            },
+            "activity_type": { 
+              "type": "string", 
+              "enum": ["MIC", "IC50", "EC50", "Growth Inhibition"],
+              "description": "The metric used to quantify activity (Minimum Inhibitory Concentration, Half Maximal Inhibitory Concentration, etc.)."
+            },
+            "activity_value": { "type": "number", "description": "The numerical value of the measured activity." },
+            "activity_unit": { 
+              "type": "string", 
+              "enum": ["μM", "nM", "mg/mL", "percentage"],
+              "description": "The unit of measurement for the activity value."
+            }
+          },
+          "required": ["activity_type", "target_organism_or_cell", "activity_value", "activity_unit"]
+        }
+      },
+      "mechanism_of_action": { 
+        "type": "string", 
+        "description": "Detailed description of how the peptide exerts its effect (e.g., 'Pore formation via barrel-stave model', 'Inhibition of cell wall synthesis')." 
+      },
+      "toxicity_profile": {
+        "type": "object",
+        "description": "Data regarding the safety or adverse effects of the peptide on host cells.",
+        "properties": {
+          "hemolysis": {
+            "type": "object",
+            "description": "The ability of the peptide to rupture red blood cells.",
+            "properties": {
+              "activity_type": { "type": "string", "enum": ["HC50", "Percentage"], "description": "Metric for hemolytic activity (Concentration causing 50% hemolysis or percentage at a specific dose)." },
+              "activity_value": { "type": "number" },
+              "activity_unit": { "type": "string", "enum": ["μM", "mg/mL", "percentage"] }
+            }
+          },
+          "cytotoxicity": {
+            "type": "object",
+            "description": "Toxic effects on nucleated mammalian cells.",
+            "properties": {
+              "cell_line": { "type": "string", "description": "The specific mammalian cell line used for testing (e.g., HEK293, Vero)." },
+              "activity_type": { "type": "string", "enum": ["CC50", "IC50"], "description": "Cytotoxic Concentration 50% or Inhibitory Concentration." },
+              "activity_value": { "type": "number" },
+              "activity_unit": { "type": "string", "enum": ["μM", "mg/mL", "percentage"] }
+            }
+          }
+        }
+      }
     },
-    "required": ["peptide_name", "sequence", "physicochemical_properties", "biological_activities"]
+    "required": ["peptide_name", "peptide_sequence", "peptide_sequence_HELM_format", "physicochemical_properties", "biological_activities"]
+  }
 }

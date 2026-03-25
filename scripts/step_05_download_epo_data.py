@@ -5,9 +5,12 @@ import xml.etree.ElementTree as ET
 import re
 import time
 import json
+from dotenv import load_dotenv
 
-KEY = "mxBqwaL80roV5y3MIRs2o2J7mOxGwntd8E55KZe8eYb2AREf"
-SECRET = "EI5WethGd0nR4pFwd67lMtCxujcwPyqNkGXW5G0vawyZOZTrE082aOMJkRlGGF29"
+load_dotenv()
+
+KEY = os.environ.get('EPO-APIKEY')
+SECRET = os.environ.get('EPO-APISECRET')
 QUERY = open('data/queries/epo.txt').read()
 
 OUTPUT_DIR = "data/patent_data/epo/"

@@ -7,6 +7,7 @@ from tqdm import tqdm
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+import glob
 
 load_dotenv()
 
@@ -24,18 +25,16 @@ with open('data/prompts/step_04/01_extraction_prompt.txt', 'r', encoding='utf-8'
 with open('data/prompts/step_04/01_extraction_prompt_response_format.json', 'r', encoding='utf-8') as f:
     response_schema = json.load(f)
 
-for source in ['pubmed', 'scopus']:
-    print(f'extracting data using LLM for {source} papers')
-    df_source = pd.read_csv('data/literature_data/pubmed_downloaded.csv')
-    source_rows = []
+papers = glob.glob("data/literature_data/*/*.pdf")
+patents =  glob.glob("data/patent_data/*/*.pdf") + glob.glob("data/patent_data/*/*.json")
+antimicrobial_databases = glob.glob("data/antimicrobial_databases/papers/*/*.pdf")
 
-    for r, row in tqdm(df_source.iterrows(), total=df_source.shape[0]):
-        if pd.isna(row['pdf_path']):
-            continue
-        if not os.path.isfile(row['pdf_path']):
-            continue
-        # Updated upload syntax
-        uploaded_file = client.files.upload(file=row['pdf_path'])
+rows = []
+
+for extracted_id, extracted_paper_file in enumerate(tqdm(patents + papers + antimicrobial_databases)):
+    print(extracted_paper_file)
+    if extracted_paper_file.endswith(".pdf"):
+        uploaded_file = client.files.upload(file=extracted_paper_file)
 
         # Updated polling syntax
         file_info = client.files.get(name=uploaded_file.name)
@@ -49,21 +48,38 @@ for source in ['pubmed', 'scopus']:
             file_info = client.files.get(name=uploaded_file.name)
 
         if get_state(file_info.state) == "FAILED":
-            sys.exit(f"Error: Document processing failed on the server for {row['pdf_path']}.")
+            sys.exit(f"Error: Document processing failed on the server for {extracted_paper_file}.")
 
-        # Updated model generation syntax
-        response = client.models.generate_content(
-            model="gemini-2.5-pro",
-            contents=[uploaded_file, prompt_text],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_json_schema=response_schema
-            )
+    if extracted_paper_file.endswith('.json'):
+        contents = [prompt_text, open(extracted_paper_file).read()]
+    else:
+        contents = [prompt_text, uploaded_file]
+
+    # Updated model generation syntax
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=contents,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_json_schema=response_schema
         )
+    )
 
-        with open(f'data/llm_data_extraction/literature_data/{source}/{row.internal_id}.json','w') as writer:
-            print(response.text)
-            writer.write(json.dumps(json.loads(response.text), indent=4))
-        
+    output_json = f'data/llm_data_extraction/raw_extraction_json/{extracted_id}.json'
+
+    rows.append({'extracted_id':extracted_id, 'uploaded_file': extracted_paper_file, 'output_json': output_json})
+
+    json_content = json.dumps(json.loads(response.text), indent=4)
+
+    print(json_content)
+
+    with open(output_json,'w') as writer:
+        writer.write(json.dumps(json.loads(response.text), indent=4))
+    
+
+
+    if extracted_paper_file.endswith(".pdf"):
         # Updated delete syntax
         client.files.delete(name=uploaded_file.name)
+
+    pd.DataFrame(rows).to_csv('data/llm_data_extraction/raw_extraction.csv', index=False)

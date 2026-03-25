@@ -1,5 +1,7 @@
 .env
 *.pdf
 *.fasta
+*.json
+*.csv
 data/patent_data/*/*.pdf
 data/patent_data/*/*.json
