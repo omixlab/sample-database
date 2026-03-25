@@ -1,5 +1,7 @@
 # sAMPle: A web server of antimicrobial peptides
 
+![](media/logo.png)
+
 ## Overview
 This repository contains a sequence of Python scripts designed to systematically query, download, and extract structured data from academic literature (PubMed, Scopus) and patent databases (EPO) regarding antimicrobial peptides. It executes PDF acquisition and utilizes the Google Gemini API for structured data extraction via Large Language Models.
 
