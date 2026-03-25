@@ -1,0 +1,12 @@
+{
+    "peptide_name": "null",
+    "sequence": "null",
+    "physicochemical_properties": {
+        "length": 0,
+        "molecular_weight": 0,
+        "net_charge": 0,
+        "hydrophobicity": 0,
+        "secondary_structure": "unknown"
+    },
+    "biological_activities": []
+}

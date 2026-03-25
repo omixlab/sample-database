@@ -1,0 +1,151 @@
+{
+    "peptide_name": "Samarosporin",
+    "source_organism": "Samarospora species (an ascomycete)",
+    "sequence": "null",
+    "physicochemical_properties": {
+        "length": 15,
+        "molecular_weight": 1480,
+        "net_charge": 0,
+        "hydrophobicity": -0.5,
+        "secondary_structure": "cyclic"
+    },
+    "biological_activities": [
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Staphylococcus aureus FDA 209 P",
+            "mic_value": 15.6,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Staphylococcus albus",
+            "mic_value": 31.2,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Corynebacterium sepedonicum",
+            "mic_value": 15.6,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Sarcina lutea",
+            "mic_value": 15.6,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Bacillus subtilis PCI 219",
+            "mic_value": 31.2,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Micrococcus flavus",
+            "mic_value": 15.6,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Serratia marcescens",
+            "mic_value": 31.2,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Aerobacter aerogenes",
+            "mic_value": 125.0,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Escherichia coli B",
+            "mic_value": 62.5,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Salmonella enteritidis No. 11",
+            "mic_value": 62.5,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Shigella flexneri",
+            "mic_value": 31.2,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Erwinia carotovora",
+            "mic_value": 15.6,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Xanthomonas oryzae",
+            "mic_value": 15.6,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Mycobacterium 607",
+            "mic_value": 15.6,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antifungal",
+            "target_organism_or_cell": "Candida albicans YU-1200",
+            "mic_value": 62.5,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antifungal",
+            "target_organism_or_cell": "Cryptococcus neoformans",
+            "mic_value": 62.5,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antifungal",
+            "target_organism_or_cell": "Saccharomyces sake",
+            "mic_value": 31.2,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antifungal",
+            "target_organism_or_cell": "Trichophyton interdigitale",
+            "mic_value": 500.0,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antifungal",
+            "target_organism_or_cell": "Sporotricum gougeroti",
+            "mic_value": 15.6,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antifungal",
+            "target_organism_or_cell": "Penicillium chrysogenum",
+            "mic_value": 62.5,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antifungal",
+            "target_organism_or_cell": "Piricularia oryzae",
+            "mic_value": 31.2,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antiparasitic",
+            "target_organism_or_cell": "Tetrahymena geleii W",
+            "mic_value": 15.6,
+            "mic_unit": "mcg/ml"
+        }
+    ],
+    "mechanism_of_action": "null",
+    "toxicity_profile": {
+        "hemolysis": "null",
+        "cytotoxicity": "null"
+    }
+}

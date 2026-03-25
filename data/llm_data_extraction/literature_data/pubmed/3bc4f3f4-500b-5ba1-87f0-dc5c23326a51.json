@@ -1,0 +1,103 @@
+{
+    "peptide_name": "Globomycin",
+    "source_organism": "Streptomyces halstedii No. 13912",
+    "sequence": "null",
+    "physicochemical_properties": {
+        "length": 0,
+        "molecular_weight": 656.0,
+        "net_charge": 0.0,
+        "hydrophobicity": 0.0,
+        "secondary_structure": "unknown"
+    },
+    "biological_activities": [
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Escherichia coli NIHJ JC-2",
+            "mic_value": 12.5,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Escherichia coli SANK 72375",
+            "mic_value": 12.5,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Escherichia coli SANK 71573",
+            "mic_value": 0.2,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Escherichia coli B",
+            "mic_value": 0.4,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Klebsiella pneumoniae PCI 602",
+            "mic_value": 0.2,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Klebsiella pneumoniae 835",
+            "mic_value": 50.0,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Klebsiella pneumoniae 846",
+            "mic_value": 25.0,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Serratia marcescens SANK 73060",
+            "mic_value": 50.0,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Shigella dysenteriae Hanabusa",
+            "mic_value": 12.5,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Shigella flexneri 2a Komagome",
+            "mic_value": 12.5,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Shigella sonnei Oh-hara",
+            "mic_value": 12.5,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Salmonella typhi TD",
+            "mic_value": 12.5,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Salmonella paratyphi A",
+            "mic_value": 50.0,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Salmonella paratyphi B",
+            "mic_value": 50.0,
+            "mic_unit": "\u00b5g/ml"
+        }
+    ],
+    "mechanism_of_action": "Inhibition of bacterial cell wall synthesis, evidenced by spheroplast formation in Escherichia coli.",
+    "toxicity_profile": {
+        "hemolysis": "null",
+        "cytotoxicity": "Not cytotoxic to mouse L cells (minimal toxic concentration 250 \u00b5g/ml). LD50 115 mg/kg (intraperitoneal) and tolerated 400 mg/kg (subcutaneous) in mice."
+    }
+}

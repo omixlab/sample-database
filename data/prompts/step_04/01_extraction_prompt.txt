@@ -1,0 +1,13 @@
+"Systematically parse this document to extract physicochemical properties and biological activities of antimicrobial peptides (AMPs). Strict adherence to the provided JSON schema is mandatory.
+
+Execution rules:
+
+    Extract explicit data only. Do not infer, calculate, or hallucinate missing values.
+
+    If a specific field is absent in the source text, output null.
+
+    Distinguish between computationally predicted and experimentally validated data; prioritize experimental data when both exist.
+
+    Extract units exactly as written in the source text.
+
+    Do not include markdown formatting, explanations, or conversational text in the output. Return only the parsed JSON object."

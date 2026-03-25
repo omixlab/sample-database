@@ -1,0 +1,31 @@
+{
+    "peptide_name": "Lincomycin",
+    "source_organism": "null",
+    "sequence": "null",
+    "physicochemical_properties": {
+        "length": 0,
+        "molecular_weight": 0,
+        "net_charge": 0,
+        "hydrophobicity": 0,
+        "secondary_structure": "unknown"
+    },
+    "biological_activities": [
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Staphylococcus aureus coccal forms",
+            "mic_value": 0.366,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Staphylococcus aureus L-phase variants",
+            "mic_value": 0.1,
+            "mic_unit": "\u00b5g/ml"
+        }
+    ],
+    "mechanism_of_action": "its primary site of action is not in the cell wall.",
+    "toxicity_profile": {
+        "hemolysis": "null",
+        "cytotoxicity": "null"
+    }
+}

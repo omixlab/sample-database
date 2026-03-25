@@ -1,0 +1,25 @@
+{
+    "peptide_name": "Colistin",
+    "source_organism": "null",
+    "sequence": "null",
+    "physicochemical_properties": {
+        "length": 0,
+        "molecular_weight": 0,
+        "net_charge": 0,
+        "hydrophobicity": 0,
+        "secondary_structure": "unknown"
+    },
+    "biological_activities": [
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "E. coli",
+            "mic_value": 10,
+            "mic_unit": "mcg/ml"
+        }
+    ],
+    "mechanism_of_action": "Induces morphological disorders on the cell surface of Gram-negative organisms; renders E. coli permeable to other antibiotics like neocarzinostatin, actinomycin D, and mikamycin.",
+    "toxicity_profile": {
+        "hemolysis": "null",
+        "cytotoxicity": "null"
+    }
+}

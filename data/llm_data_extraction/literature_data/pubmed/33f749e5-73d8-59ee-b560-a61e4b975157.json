@@ -1,0 +1,37 @@
+{
+    "peptide_name": "Protein-bound DAP",
+    "source_organism": "Escherichia coli W-7",
+    "sequence": "",
+    "physicochemical_properties": {
+        "length": 0,
+        "molecular_weight": 0,
+        "net_charge": 0,
+        "hydrophobicity": 0,
+        "secondary_structure": "unknown"
+    },
+    "biological_activities": [
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "E. coli W-7",
+            "mic_value": 0,
+            "mic_unit": ""
+        },
+        {
+            "activity_type": "antiviral",
+            "target_organism_or_cell": "viruses",
+            "mic_value": 0,
+            "mic_unit": ""
+        },
+        {
+            "activity_type": "other",
+            "target_organism_or_cell": "mycoplasma species",
+            "mic_value": 0,
+            "mic_unit": ""
+        }
+    ],
+    "mechanism_of_action": "Oxidative peptide cleavage and decarboxylation of protein-bound amino acids (like DAP) by the MPO-H2O2-Cl- system, involving amino acid chloramines and potentially singlet oxygen, yielding aldehydes, CO2, and NH4Cl.",
+    "toxicity_profile": {
+        "hemolysis": "",
+        "cytotoxicity": "Highly efficient cytotoxic effect against mouse lymphoma cells (observed for the MPO-H2O2-Cl- system)."
+    }
+}

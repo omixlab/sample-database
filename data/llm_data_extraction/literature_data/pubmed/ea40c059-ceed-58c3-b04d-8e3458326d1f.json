@@ -1,0 +1,25 @@
+{
+    "peptide_name": "Carzinophilin",
+    "source_organism": "Streptomyces sahachiroi",
+    "sequence": "null",
+    "physicochemical_properties": {
+        "length": 0,
+        "molecular_weight": 0,
+        "net_charge": 0,
+        "hydrophobicity": 0,
+        "secondary_structure": "unknown"
+    },
+    "biological_activities": [
+        {
+            "activity_type": "anticancer",
+            "target_organism_or_cell": "advanced solid carcinoma (human), ascites tumors (Yoshida sarcoma, Ehrlich carcinoma)",
+            "mic_value": 0,
+            "mic_unit": ""
+        }
+    ],
+    "mechanism_of_action": "inhibit strongly the growth of ascites tumors",
+    "toxicity_profile": {
+        "hemolysis": "null",
+        "cytotoxicity": "local necrosis (due to extravasation)"
+    }
+}

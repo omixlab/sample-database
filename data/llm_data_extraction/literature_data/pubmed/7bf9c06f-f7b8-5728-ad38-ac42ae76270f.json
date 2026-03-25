@@ -1,0 +1,49 @@
+{
+    "peptide_name": "Colistin Methanesulfonate",
+    "source_organism": "null",
+    "sequence": "null",
+    "physicochemical_properties": {
+        "length": 0,
+        "molecular_weight": 0,
+        "net_charge": 0,
+        "hydrophobicity": 0,
+        "secondary_structure": "unknown"
+    },
+    "biological_activities": [
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Shigella flexneri 2a R\u2081 (JS2997)",
+            "mic_value": 0.4,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "S. flexneri 3a R4 (JS2529)",
+            "mic_value": 0.1,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "S. sonnei R\u2081 (JS949)",
+            "mic_value": 0.8,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Proteus (OX2)",
+            "mic_value": 100,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Pseudomonas pyogenes (GN83)",
+            "mic_value": 3.2,
+            "mic_unit": "mcg/ml"
+        }
+    ],
+    "mechanism_of_action": "null",
+    "toxicity_profile": {
+        "hemolysis": "null",
+        "cytotoxicity": "null"
+    }
+}

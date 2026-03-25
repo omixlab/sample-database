@@ -1,0 +1,49 @@
+{
+    "peptide_name": "Cerexin A",
+    "source_organism": "Bacillus cereus",
+    "sequence": "null",
+    "physicochemical_properties": {
+        "length": 10,
+        "molecular_weight": 1500,
+        "net_charge": 0,
+        "hydrophobicity": 0,
+        "secondary_structure": "unknown"
+    },
+    "biological_activities": [
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Bacillus subtilis PCI 219",
+            "mic_value": 6.25,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Bacillus anthracis",
+            "mic_value": 25,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Staphylococcus aureus FDA 209P JC-1",
+            "mic_value": 50,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Diplococcus pneumoniae type I",
+            "mic_value": 3.13,
+            "mic_unit": "mcg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Streptococcus pyogenes C-203",
+            "mic_value": 6.25,
+            "mic_unit": "mcg/ml"
+        }
+    ],
+    "mechanism_of_action": "null",
+    "toxicity_profile": {
+        "hemolysis": "null",
+        "cytotoxicity": "null"
+    }
+}

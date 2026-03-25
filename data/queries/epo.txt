@@ -1,0 +1,9 @@
+(
+    ti="antimicrobial peptide*" OR 
+    ab="antimicrobial peptide*" OR 
+    ti="host defense peptide*" OR 
+    ab="host defense peptide*" OR 
+    ti="AMPs" OR 
+    ab="AMPs" OR 
+    ti="HDPs" OR ab="HDPs" OR cl="A61K38/00" OR cl="C07K14/00"
+)

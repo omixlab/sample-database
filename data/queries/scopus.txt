@@ -1,0 +1,19 @@
+(
+    TITLE-ABS("Antimicrobial Peptides") OR 
+    TITLE-ABS("antimicrobial peptide*") OR 
+    TITLE-ABS("host defense peptide*") OR 
+    TITLE-ABS("AMP*") OR 
+    TITLE-ABS("HDP*") OR 
+    TITLE-ABS("peptide*")
+) AND (
+        TITLE-ABS("antimicrobial") OR 
+        TITLE-ABS("anti-microbial") OR 
+        TITLE-ABS("antifungal") OR 
+        TITLE-ABS("anti-fungal") OR 
+        TITLE-ABS("antiviral") OR 
+        TITLE-ABS("anti-viral") OR 
+        TITLE-ABS("anticancer") OR 
+        TITLE-ABS("anti-cancer") OR 
+        TITLE-ABS("antitumor") OR 
+        TITLE-ABS("anti-tumor")
+    )

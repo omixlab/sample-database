@@ -1,0 +1,46 @@
+{
+    "type": "object",
+    "properties": {
+        "peptide_name": {"type": "string"},
+        "source_organism": {"type": "string"},
+        "sequence": {"type": "string"},
+        "physicochemical_properties": {
+            "type": "object",
+            "properties": {
+                "length": {"type": "integer"},
+                "molecular_weight": {"type": "number"},
+                "net_charge": {"type": "number"},
+                "hydrophobicity": {"type": "number"},
+                "secondary_structure": {
+                    "type": "string",
+                    "enum": ["alpha-helix", "beta-sheet", "mixed", "linear", "cyclic", "unknown"]
+                }
+            }
+        },
+        "biological_activities": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "activity_type": {
+                        "type": "string",
+                        "enum": ["antibacterial", "antifungal", "antiviral", "antiparasitic", "anticancer", "antibiofilm", "anti-inflammatory", "other"]
+                    },
+                    "target_organism_or_cell": {"type": "string"},
+                    "mic_value": {"type": "number"},
+                    "mic_unit": {"type": "string"}
+                },
+                "required": ["activity_type", "target_organism_or_cell", "activity_value", "activity_unit"]
+            }
+        },
+        "mechanism_of_action": {"type": "string"},
+        "toxicity_profile": {
+            "type": "object",
+            "properties": {
+                "hemolysis": {"type": "string"},
+                "cytotoxicity": {"type": "string"}
+            }
+        }
+    },
+    "required": ["peptide_name", "sequence", "physicochemical_properties", "biological_activities"]
+}

@@ -1,0 +1,43 @@
+{
+    "peptide_name": "macromomycin",
+    "source_organism": "Streptomyces macromomyceticus",
+    "sequence": "null",
+    "physicochemical_properties": {
+        "length": 12000,
+        "molecular_weight": 12000,
+        "net_charge": 0,
+        "hydrophobicity": 0,
+        "secondary_structure": "unknown"
+    },
+    "biological_activities": [
+        {
+            "activity_type": "anticancer",
+            "target_organism_or_cell": "HeLa S3 cells",
+            "mic_value": 0.11,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "anticancer",
+            "target_organism_or_cell": "HeLa S3 cells",
+            "mic_value": 0.74,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "anticancer",
+            "target_organism_or_cell": "L5178Y cells",
+            "mic_value": 0.11,
+            "mic_unit": "\u00b5g/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Gram-positive bacteria",
+            "mic_value": 0,
+            "mic_unit": "null"
+        }
+    ],
+    "mechanism_of_action": "MCR works directly on cell nuclei; strand scission of DNA is a primary action. It binds to tumor cell membranes, inhibits DNA synthesis preferentially, and strongly inhibits cell mitosis. MCR stimulates DNA polymerase activity in isolated nuclei. The inhibition of cell mitosis is not a consequence of the inhibition of DNA synthesis. Strand scission of DNA occurred rapidly after MCR treatment and was temperature dependent.",
+    "toxicity_profile": {
+        "hemolysis": "null",
+        "cytotoxicity": "Difficult to recover growth by trypsin treatment after MCR exposure because MCR caused rapid strand scission in cellular DNA."
+    }
+}

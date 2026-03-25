@@ -1,0 +1,18 @@
+{
+    "peptide_name": "Lysostaphin",
+    "source_organism": "Staphylococcus staphylolyticus",
+    "sequence": "Not provided in the source document",
+    "physicochemical_properties": {},
+    "biological_activities": [
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Staphylococcus aureus",
+            "mic_value": 1.6,
+            "mic_unit": "\u00b5g/ml"
+        }
+    ],
+    "mechanism_of_action": "Its action is thought to be due to a peptidase that cleaves cell wall polyglycine bridges and is found almost exclusively in coagulase-positive staphylococci.",
+    "toxicity_profile": {
+        "cytotoxicity": "No local or systemic reactions were detected in those treated either once or twice with intranasal lysostaphin. A single immediate wheal and flair skin test reaction was observed in one person."
+    }
+}

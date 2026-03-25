@@ -1,0 +1,37 @@
+{
+    "peptide_name": "colistin sulfate",
+    "source_organism": "null",
+    "sequence": "null",
+    "physicochemical_properties": {
+        "length": 0,
+        "molecular_weight": 0,
+        "net_charge": 0,
+        "hydrophobicity": 0,
+        "secondary_structure": "unknown"
+    },
+    "biological_activities": [
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Pseudomonas aeruginosa",
+            "mic_value": 1.4,
+            "mic_unit": "mg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Pseudomonas aeruginosa",
+            "mic_value": 14.0,
+            "mic_unit": "mg/ml"
+        },
+        {
+            "activity_type": "antibacterial",
+            "target_organism_or_cell": "Bacillus megaterium",
+            "mic_value": 30.0,
+            "mic_unit": "mg/ml"
+        }
+    ],
+    "mechanism_of_action": "In Pseudomonas aeruginosa, colistin sulfate caused the nuclear material to be no longer demonstrable and the cytoplasm lost its granularity, becoming homogeneous. In Bacillus megaterium, cytoplasmic material engulfed and masked nuclear areas, and the cytoplasm lost its granularity. The cell wall also became more irregular in thickness. These changes resulted in nonviable cells. Hypothesized mechanisms include the antibiotic penetrating the cell wall and membrane to react with cytoplasm, invading and obliterating nuclear areas, or rendering the cell wall impermeable to metabolites, leading to upset cell metabolism.",
+    "toxicity_profile": {
+        "hemolysis": "null",
+        "cytotoxicity": "null"
+    }
+}

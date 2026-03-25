@@ -1,0 +1,18 @@
+{
+    "peptide_name": "Mycobacillin",
+    "source_organism": "Bacillus subtilis B3",
+    "sequence": "null",
+    "physicochemical_properties": {
+        "length": 13,
+        "molecular_weight": 1527.0,
+        "net_charge": 0.0,
+        "hydrophobicity": 0.0,
+        "secondary_structure": "cyclic"
+    },
+    "biological_activities": [],
+    "mechanism_of_action": "null",
+    "toxicity_profile": {
+        "hemolysis": "null",
+        "cytotoxicity": "null"
+    }
+}

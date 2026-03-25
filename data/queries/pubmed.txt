@@ -1,0 +1,20 @@
+(
+    "Antimicrobial Peptides"[Mesh] OR 
+    "antimicrobial peptide*"[tiab] OR 
+    "host defense peptide*"[tiab] OR 
+    "AMPs"[tiab] OR "HDPs"[tiab] OR
+    "peptide*"[tiab] 
+) AND (
+    "antimicrobial"[tiab] OR 
+    "anti-microbial"[tiab] OR 
+    "antifungal"[tiab] OR 
+    "anti-fungal"[tiab] OR 
+    "antiviral"[tiab] OR 
+    "anti-viral"[tiab] OR 
+    "anticancer"[tiab] OR 
+    "anti-cancer"[tiab] OR 
+    "antitumor"[tiab] OR 
+    "anti-tumor"[tiab] OR 
+    "antineoplastic"[tiab] OR 
+    "Antineoplastic Agents"[Mesh]
+)
