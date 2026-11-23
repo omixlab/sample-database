@@ -260,14 +260,6 @@ sample.esm_finetune module
    :show-inheritance:
    :undoc-members:
 
-sample.expression module
-------------------------
-
-.. automodule:: sample.expression
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
 sample.external\_db module
 --------------------------
 
