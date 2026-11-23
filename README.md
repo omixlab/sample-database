@@ -91,10 +91,7 @@ carries exactly its dependencies.
    **incremental update** path (`incremental-update` / `update-families`) that places newly
    ingested peptides into the existing family map without renumbering.
 10. **Interactive dashboard** — background prediction jobs (Redis + Celery), a database explorer with
-    per-peptide detail, analytics, an annotator, and external-database cross-links. The analyses
-    that cost minutes each (ColabFold folding, MPEPE yield) are cached in Redis for seven days
-    (`sample.result_cache`) — a cache, never a record of truth, so an unreachable server just means
-    the work is redone rather than anything failing.
+    per-peptide detail, analytics, an annotator, and external-database cross-links.
 
 ---
 
@@ -927,13 +924,6 @@ refused with a clear 503 rather than accepting a job that would never run. For d
    discard the other forty-nine. Each prediction row also carries an **applicability-domain** flag
    (k-NN distance to the training set); out-of-domain sequences are still scored, but flagged.
 
-`sample.result_cache` (Redis, seven-day TTL, keyed on the exact input) exists for analyses that
-sit outside this queue because they are one-off and deterministic rather than batched. Its two
-callers were the Expression Wizard's fold and yield endpoints, which left this repository with
-the wizard; nothing imports it today. The cache is deliberately **not** a record of truth — an
-eviction, a restart, or no Redis at all simply means the work is redone — and a failed run is never
-cached, since that reflects the machine rather than the input.
-
 The endpoints also serve scripted callers:
 
 ```bash
@@ -993,7 +983,8 @@ is in [`TODO.md`](TODO.md); blocked items and known limitations in [`KNOWN_ISSUE
   `sample-cli express` command. Nothing in the numbered pipeline ever depended on it, which is
   what made the split clean. It now has its own web and CLI interfaces, its own Docker Compose
   setup and its own repository; the `sample-expression` and `sample-mpepe` environments went with
-  it. `sample.result_cache` stayed behind and is now unused — see its module docstring.
+  it. `sample.result_cache`, which existed only to cache the wizard's two expensive analyses, was
+  deleted once it had no callers; the tool carries an on-disk equivalent of its own.
 
 ### Data provenance
 

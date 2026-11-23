@@ -572,14 +572,6 @@ sample.references module
    :show-inheritance:
    :undoc-members:
 
-sample.result\_cache module
-----------------------------
-
-.. automodule:: sample.result_cache
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
 sample.revision module
 ----------------------
 

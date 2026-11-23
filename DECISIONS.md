@@ -2947,6 +2947,23 @@ it cannot be forgotten again. It costs no model calls.
   *not* the discriminant (median 19 residues vs 20, p=0.034), so "extreme-length macrocyclic
   scaffolds" was dropped from the outlier description.
 
+- **`sample.result_cache` deleted, 2026-11-23.** The Redis result cache recorded above had exactly
+  two callers -- the Expression Wizard's `/express/fold` and `/express/mpepe-yield` routes -- and
+  both left with the wizard when it was split into its own tool. Checked before removing, since
+  the instruction was conditional on it breaking nothing: no module imported it, its
+  `SAMPLE_CACHE_URL` and `SAMPLE_CACHE_TTL` variables had no other consumer and appeared in no
+  config file, and Redis itself stays because Celery uses databases 0 and 1 for the broker and
+  result backend (the cache used database 2). Removed with it: `tests/test_result_cache.py`, the
+  `docs/sample.rst` autodoc entry -- which would have failed the docs build on a module that no
+  longer exists -- and two README passages.
+- **Why delete rather than keep it for the next expensive analysis.** It was kept for one day on
+  exactly that reasoning, with its docstring amended to say it was unused. That is the state in
+  which code rots: it still imports, its tests still pass, and nothing exercises the Redis path,
+  so the first caller to adopt it inherits whatever broke in the meantime without knowing. The
+  extracted tool now carries an on-disk equivalent of the same `cached()` contract, so the design
+  is not lost -- it is in the repository that actually runs it. The git history holds the Redis
+  implementation if a future caller wants it back.
+
 ## Known environment quirk (not a code bug)
 
 This host's `sample` conda environment intermittently fails to import `sqlite3` with
