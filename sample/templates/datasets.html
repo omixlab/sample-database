@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card p-4">
+    <h1 class="display-6 fw-bold mb-3"><span class="text-gradient">Platform Datasets</span></h1>
+    <p class="text-muted mb-4">Access and download serialized consensus records, enriched physicochemical property matrices, decoys, and ready-to-train ML datasets.</p>
+    
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Dataset Name</th>
+                    <th>File Name</th>
+                    <th>File Size</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ds in datasets_list %}
+                <tr>
+                    <td><strong>{{ ds.name }}</strong></td>
+                    <td class="font-monospace text-muted">{{ ds.file }}</td>
+                    <td>{{ ds.size }}</td>
+                    <td>
+                        {% if ds.status == 'Available' %}
+                        <span class="badge bg-success-subtle text-success border border-success">{{ ds.status }}</span>
+                        {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary">{{ ds.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if ds.status == 'Available' %}
+                        <a href="/datasets/download/{{ ds.key }}" class="btn btn-sm btn-gradient px-3">Download</a>
+                        {% else %}
+                        <span class="text-muted small">Unavailable</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

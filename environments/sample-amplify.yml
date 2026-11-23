@@ -1,0 +1,28 @@
+# AMPlify for the annotator (sample/peptide_predictors.py's "amplify" adapter).
+#
+# WHY ITS OWN ENVIRONMENT. AMPlify is a deep-learning AMP classifier built on TensorFlow/Keras, and
+# its TensorFlow/numpy stack must not be dropped into the shared sample-predictors env (whose
+# scikit-learn pin exists for hemopi2's pickled models). sample/peptide_predictors.py locates it by
+# environment path (env="sample-amplify") and shells out, exactly as folding reaches sample-fold, so
+# nothing here needs the sample package installed.
+#
+# INSTALL METHOD, corrected 2026-08-14: `pip install amplify` installs an unrelated quantum-computing
+# SDK that merely shares the name, and `pip install git+https://github.com/bcgsc/AMPlify.git` fails
+# outright -- the repo has no setup.py/pyproject.toml, so pip cannot install it as a package at all.
+# The real, working distribution is bioconda's own `amplify` package (verified reachable and
+# solvable). It requires **python=3.6** specifically -- solving with python=3.8 (this file's
+# original guess) fails with `amplify ... requires python 3.6.*, but none of the providers can be
+# installed`; every released amplify version bioconda carries pins to that one Python line.
+#
+#   make env-amplify        # or: conda env create -f environments/sample-amplify.yml
+name: sample-amplify
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.6
+  - amplify
+  - biopython
+  - numpy
+  - pandas

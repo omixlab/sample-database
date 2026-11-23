@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4 mb-5">
+    <div class="col-md-12">
+        <div class="card p-4">
+            <h1 class="display-6 fw-bold mb-2"><span class="text-gradient">Peptide Analytics & Anomalies</span></h1>
+            <p class="text-muted mb-0">Explore physical-chemical properties, structural distributions, sequence embeddings, and anomalies detected using unsupervised learning on the final master dataset.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation tabs for Analytics sections -->
+<ul class="nav nav-pills mb-4 gap-2" id="analyticsTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active btn-gradient px-4 py-2" id="eda-tab" data-bs-toggle="tab" data-bs-target="#eda-panel" type="button" role="tab">Exploratory Data Analysis</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link btn btn-outline-secondary px-4 py-2" id="anomaly-tab" data-bs-toggle="tab" data-bs-target="#anomaly-panel" type="button" role="tab">Unsupervised Anomalies</button>
+    </li>
+</ul>
+
+<div class="tab-content" id="analyticsTabsContent">
+    
+    <!-- Tab 1: Exploratory Data Analysis -->
+    <div class="tab-pane fade show active" id="eda-panel" role="tabpanel">
+        
+        <!-- Row 1: Sequence properties distributions -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-6">
+                <div class="card p-4 h-100">
+                    <h3 class="h5 fw-bold mb-3">Sequence Length Distribution</h3>
+                    {% if eda_images.length_dist %}
+                        <img src="/static/img/eda/sequence_length_dist.png" class="img-fluid rounded border border-secondary border-opacity-25" alt="Sequence Length Distribution">
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center bg-body-tertiary rounded border border-dashed text-muted" style="min-height: 250px;">
+                            <p class="mb-0">Length distribution plot not found. Run step 48 (`make step_48_exploratory_data_analysis`) to generate it.</p>
+                        </div>
+                    {% endif %}
+                    <p class="text-muted small mt-3 mb-0">Shows the distribution of sequence length (in amino acid residues) for Active (AMP) vs. Decoy peptides.</p>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card p-4 h-100">
+                    <h3 class="h5 fw-bold mb-3">Net Charge Distribution</h3>
+                    {% if eda_images.charge_dist %}
+                        <img src="/static/img/eda/net_charge_dist.png" class="img-fluid rounded border border-secondary border-opacity-25" alt="Net Charge Distribution">
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center bg-body-tertiary rounded border border-dashed text-muted" style="min-height: 250px;">
+                            <p class="mb-0">Net charge distribution plot not found. Run step 48 (`make step_48_exploratory_data_analysis`) to generate it.</p>
+                        </div>
+                    {% endif %}
+                    <p class="text-muted small mt-3 mb-0">Compares estimated net charge at pH 7.0. Active antimicrobial peptides usually exhibit a positive/cationic charge density.</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Row 2: Residue frequencies -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-12">
+                <div class="card p-4">
+                    <h3 class="h5 fw-bold mb-3">Amino Acid Residue Composition</h3>
+                    {% if eda_images.residue_composition %}
+                        <img src="/static/img/eda/residue_composition.png" class="img-fluid rounded border border-secondary border-opacity-25" alt="Residue Composition">
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center bg-body-tertiary rounded border border-dashed text-muted" style="min-height: 250px;">
+                            <p class="mb-0">Residue composition plot not found. Run step 48 (`make step_48_exploratory_data_analysis`) to generate it.</p>
+                        </div>
+                    {% endif %}
+                    <p class="text-muted small mt-3 mb-0">Percentage frequency of the 20 standard amino acids. Cationic residues (Lysine, Arginine) and hydrophobic residues (Leucine, Alanine) are typically enriched in active AMPs.</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Row 3: UMAPs -->
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card p-4 h-100">
+                    <h3 class="h5 fw-bold mb-3">UMAP: Morgan Fingerprints (Chemical Structure)</h3>
+                    {% if eda_images.umap_morgan %}
+                        <img src="/static/img/eda/umap_morgan.png" class="img-fluid rounded border border-secondary border-opacity-25" alt="UMAP Morgan Fingerprints">
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center bg-body-tertiary rounded border border-dashed text-muted" style="min-height: 250px;">
+                            <p class="mb-0">Morgan UMAP plot not found. Run step 48 (`make step_48_exploratory_data_analysis`) to generate it.</p>
+                        </div>
+                    {% endif %}
+                    <p class="text-muted small mt-3 mb-0">UMAP dimensionality reduction based on 1024-bit Morgan Fingerprints (RDKit). This maps peptides according to exact 2D chemical bonding structures.</p>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card p-4 h-100">
+                    <h3 class="h5 fw-bold mb-3">UMAP: Peptide Embeddings (ESM-2 Language Model)</h3>
+                    {% if eda_images.umap_esm2 %}
+                        <img src="/static/img/eda/umap_esm2.png" class="img-fluid rounded border border-secondary border-opacity-25" alt="UMAP ESM-2 Embeddings">
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center bg-body-tertiary rounded border border-dashed text-muted" style="min-height: 250px;">
+                            <p class="mb-0">ESM-2 UMAP plot not found. Run step 48 (`make step_48_exploratory_data_analysis`) to generate it.</p>
+                        </div>
+                    {% endif %}
+                    <p class="text-muted small mt-3 mb-0">UMAP dimensionality reduction based on contextual embeddings generated by the pre-trained ESM-2 language model. Projects semantic/biophysical evolutionary relationships.</p>
+                </div>
+            </div>
+            <div class="col-lg-12">
+                <div class="card p-4 h-100">
+                    <h3 class="h5 fw-bold mb-3">Target-Organism Distribution</h3>
+                    {% if eda_images.target_organism_dist %}
+                        <img src="/static/img/eda/target_organism_dist.png" class="img-fluid rounded border border-secondary border-opacity-25" alt="Target Organism Distribution">
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center bg-body-tertiary rounded border border-dashed text-muted" style="min-height: 250px;">
+                            <p class="mb-0">Target-organism distribution plot not found. Run step 48 (`make step_48_exploratory_data_analysis`) to generate it.</p>
+                        </div>
+                    {% endif %}
+                    <p class="text-muted small mt-3 mb-0">The 20 organisms measured against most often across every activity in the release -- source-database and SAMPLE-extracted measurements combined, from <code>activities.csv</code>'s <code>target_organism</code> field.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <!-- Tab 2: Anomaly Detection -->
+    <div class="tab-pane fade" id="anomaly-panel" role="tabpanel">
+        <div class="row g-4">
+            
+            {% if anomaly_report %}
+            <!-- Summary stats -->
+            <div class="col-md-4">
+                <div class="card p-4 h-100 d-flex flex-column justify-content-between">
+                    <div>
+                        <h3 class="h5 fw-bold mb-3">Anomaly Detection Profile</h3>
+                        <p class="text-muted small">Outliers identified using an unsupervised <strong>Isolation Forest</strong> trained on all molecular descriptors and amino acid frequency embeddings.</p>
+                        
+                        <hr class="border-secondary border-opacity-25 my-3">
+                        
+                        <div class="mb-2 d-flex justify-content-between">
+                            <span class="text-muted">Total Sequences:</span>
+                            <span class="fw-bold">{{ anomaly_report.total_records }}</span>
+                        </div>
+                        <div class="mb-2 d-flex justify-content-between">
+                            <span class="text-muted">Contamination Rate:</span>
+                            <span class="fw-bold">
+                                {%- if anomaly_report.contamination_rate is number -%}
+                                    {{ "%.1f"|format(anomaly_report.contamination_rate * 100) }}%
+                                {%- else -%}
+                                    {{ "%.2f"|format(anomaly_report.percentage_anomalies) }}% (auto)
+                                {%- endif -%}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="card bg-danger-subtle border border-danger p-3 text-center mt-4">
+                        <span class="text-uppercase text-danger fw-bold small">Anomalies Detected</span>
+                        <h3 class="display-6 fw-bold text-danger mt-1 mb-0">{{ anomaly_report.num_anomalies }}</h3>
+                        <span class="text-danger small mt-1">({{ "%.2f"|format(anomaly_report.percentage_anomalies) }}% of library)</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Comparison table -->
+            <div class="col-md-8">
+                <div class="card p-4 h-100">
+                    <h3 class="h5 fw-bold mb-3">Feature Averages: Normal vs Anomalous</h3>
+                    <p class="text-muted small mb-4">Comparison of property means showing how anomalies deviate from regular peptides.</p>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Molecular Feature</th>
+                                    <th>Normal Peptides (Inliers)</th>
+                                    <th>Anomalous Peptides (Outliers)</th>
+                                    <th>Difference</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for feat, stats in anomaly_report.summary_features.items() %}
+                                <tr>
+                                    <td><strong class="text-capitalize">{{ feat|replace('_', ' ') }}</strong></td>
+                                    <td>{{ "%.2f"|format(stats.inliers_mean) }}</td>
+                                    <td class="text-danger">{{ "%.2f"|format(stats.anomalies_mean) }}</td>
+                                    <td class="fw-bold">
+                                        {% set diff = stats.anomalies_mean - stats.inliers_mean %}
+                                        {% if diff > 0 %}+{% endif %}{{ "%.2f"|format(diff) }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="alert alert-warning border-warning bg-warning-subtle text-warning-emphasis p-3 rounded mt-3 mb-0 small">
+                        <strong>Pipeline Action:</strong> Anomalies represent outliers with atypical lengths, charges, or molecular weights. They can be dynamically filtered out before ML model training and validation using the <code>--filter-anomalies</code> flag in the <code>train-ml</code> and <code>validate-ml</code> routines.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Top anomalies listing -->
+            <div class="col-md-12">
+                <div class="card p-4">
+                    <h3 class="h5 fw-bold mb-3">Top Detected Anomalous Peptides</h3>
+                    <p class="text-muted small mb-4">Peptides with the lowest anomaly scores, representing the most severe outliers in the database.</p>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Entry ID</th>
+                                    <th>Sequence</th>
+                                    <th>Length (AA)</th>
+                                    <th>Charge (pH 7)</th>
+                                    <th>Anomaly Score</th>
+                                    <th>Type</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in anomaly_report.top_anomalies %}
+                                <tr>
+                                    <td>
+                                        {% if row.is_decoy == 1 %}
+                                            <span class="font-monospace text-muted" title="Synthetic negative control decoy — excluded from public peptide catalogue">{{ row.entry_id }}</span>
+                                        {% else %}
+                                            <a href="/search/peptide/{{ row.entry_id }}" class="font-monospace fw-bold">{{ row.entry_id }}</a>
+                                        {% endif %}
+                                    </td>
+                                    <td class="font-monospace text-truncate" style="max-width: 300px;" title="{{ row.sequence }}">{{ row.sequence }}</td>
+                                    <td>{{ row.sequence_length }}</td>
+                                    <td>{{ row.charge }}</td>
+                                    <td><span class="badge bg-danger-subtle text-danger">{{ "%.4f"|format(row.anomaly_score) }}</span></td>
+                                    <td>
+                                        {% if row.is_decoy == 1 %}
+                                            <span class="badge bg-secondary-subtle text-secondary-emphasis border" title="Negative training decoy">Decoy (Negative)</span>
+                                        {% else %}
+                                            <span class="badge bg-success-subtle text-success-emphasis border">Curated AMP</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            {% else %}
+            <div class="col-md-12">
+                <div class="card text-center py-5 text-muted border border-secondary border-dashed rounded bg-body-tertiary">
+                    <p class="mb-0">Anomaly detection report not found. Please run <code>make step_43_anomaly_detection</code> or execute <code>sample-cli anomaly-detection</code> first.</p>
+                </div>
+            </div>
+            {% endif %}
+            
+        </div>
+    </div>
+</div>
+
+<script>
+    // Keep tab navigation styling clean
+    document.addEventListener("DOMContentLoaded", () => {
+        const triggerTabList = document.querySelectorAll('#analyticsTabs button');
+        triggerTabList.forEach(triggerEl => {
+            triggerEl.addEventListener('click', event => {
+                event.preventDefault();
+                // Reset other buttons class
+                triggerTabList.forEach(btn => {
+                    btn.classList.remove('btn-gradient');
+                    btn.classList.add('btn-outline-secondary');
+                });
+                // Add class to active
+                triggerEl.classList.remove('btn-outline-secondary');
+                triggerEl.classList.add('btn-gradient');
+            });
+        });
+    });
+</script>
+{% endblock %}

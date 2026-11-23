@@ -1,0 +1,110 @@
+name: sample-extraction
+channels:
+  - conda-forge
+  - bioconda      # supplies `cd-hit`; it is on no other channel, same as sample.yml's own bioconda
+                  # line for `blast`
+  - defaults
+
+# Steps 7-8, 10-16, 30-39: peptide extraction, external-database enrichment, LLM validation, the
+# strict-contract revision, schema repair, the merges, and the post-assembly harvests (names,
+# bibliography, families, HMMs, bioactivity, modifications, source organisms, cross-references,
+# gene ontology).
+#
+# This is the largest environment and cannot usefully be split further. Nearly every module in
+# these steps imports sample/nlp.py, which pulls in the Aho-Corasick automata, spacy, nltk and
+# the sentence-transformers stack; the transitive closure is therefore the same for all of them.
+# Splitting them would mean refactoring those imports first, not writing more environment files.
+#
+# After creating it, download the spacy and nltk models:
+#     conda run -n sample-extraction python -m sample.install_models
+dependencies:
+  - python=3.11
+  - pip
+  - poppler
+  # OCR for image-only and scanned PDFs. The binary must be declared here, not just the
+  # pytesseract wrapper below: pytesseract shells out to `tesseract` by bare name, and this host's
+  # PATH does not carry it, so an env built without this line imports cleanly and then fails at the
+  # first OCR call. Callers resolve it from the env's own bin (see KNOWN_ISSUES.md: tools in
+  # per-tool environments are invoked by absolute path, never via `conda run`).
+  - tesseract
+  - pip:
+      # Core data handling
+      - pandas
+      # Reads the .xlsx source files: dbAMP's dbAMP3_pepinfo and the curated Clostridium /
+      # Leishmania sheets. pandas needs it explicitly -- without it read_excel raises and the
+      # caller degrades to zero rows, which is how dbAMP silently contributed no names at all.
+      - openpyxl
+      # spacy/thinc/blis require numpy 1.x. Stated explicitly so the shared
+      # pin in the other environments has a visible reason to point at.
+      - numpy<2
+      - scipy
+      - biopython
+      - python-dateutil
+      - python-dotenv
+
+      # Text mining and NLP
+      - pyahocorasick        # sample/nlp.py -- organism/cell-line/peptide-name automata
+      # Pinned <3.8: en_core_sci_sm 0.5.4 (installed by sample.install_models) was trained
+      # against spaCy 3.7.4 and ships a config.cfg with `include_static_vectors: 'False'` (a
+      # string, not a bool). spaCy 3.7.x reads that loosely; 3.8 tightened config-schema
+      # validation and rejects it outright -- "'False' is not <class 'bool'>" -- so every
+      # extraction call fails as soon as an unpinned solve picks up 3.8. Left unpinned once by
+      # mistake; this is that fixed.
+      - spacy>=3.7,<3.8
+      - nltk
+      - sentence-transformers
+      # --- PyTorch, pinned to a CUDA 12.1 build ---
+      # The default PyPI wheel is built for CUDA 13. This machine's driver (535.x) tops out at
+      # CUDA 12.2, so that wheel installs ~5 GB of CUDA libraries and then reports
+      # torch.cuda.is_available() == False -- every embedding pass silently falls back to CPU.
+      # cu121 wheels work with driver >= 525 and light up the GPU for the ESM-2 pass.
+      # Verified on an RTX 3060: torch.cuda.is_available() True, ESM-2 runs on `cuda`.
+      - --extra-index-url https://download.pytorch.org/whl/cu121
+      - torch==2.5.1+cu121
+      - transformers
+
+      # PDF text extraction
+      - PyMuPDF
+      - pdfplumber
+      - pytesseract          # thin wrapper over the `tesseract` binary declared above
+      # NOT listed: fibrum-pdf. sample/nlp.py imported `to_json` from it and never called it --
+      # a leftover of a layout-parsing path that was removed. The import is gone; do not add the
+      # package back without a call site.
+
+      # LLM backends
+      - ollama
+      - google-genai
+      - json-repair          # sample/llm.py -- recovers truncated model JSON
+
+      # Validation and schema
+      - jsonschema           # sample/validation.py -- step 13 schema check
+
+      # Cheminformatics -- the merge steps build SMILES for extracted sequences
+      - rdkit
+
+      # Near-identity peptide clustering -- step 32's build-families falls back to PepMatch
+      # (sample/families.py's similarity_edges()) for the peptides Pfam doesn't anchor, and
+      # sample/similarity.py and sample/incremental.py import it too. Never declared here before;
+      # the gap only surfaced when step 32 crashed with ModuleNotFoundError after Pfam-anchoring
+      # 10728 peptides and reaching the PepMatch clustering pass for the remaining 23811.
+      - pepmatch
+      # sample/families.py's cluster_cdhit(), preferred over the PepMatch route above wherever a
+      # caller needs identity below ~60% on peptides longer than a few residues -- PepMatch's
+      # mismatch budget is capped at 6 for tractability, so it cannot deliver a low identity
+      # target on anything but short sequences. Absent this, clustering degrades to PepMatch with
+      # a logged warning rather than failing, so a build without it still completes -- just at a
+      # higher effective identity than requested.
+      - cd-hit
+
+      # --- Pinned: must equal sample-ml.yml and sample-web.yml. ---
+      # sample/rf_filter.py pickles a RandomForest in step 8 (which runs in sample-ml) and
+      # unpickles it here in step 7 to screen candidate sequences. That pickle crosses the
+      # environment boundary exactly as the trained models do, so the same pin applies.
+      - scikit-learn==1.9.0
+      # ------------------------------------------------------------
+
+      # HTTP, for step 9's external database lookups
+      - requests
+      - urllib3
+
+      - tqdm

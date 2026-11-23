@@ -1,0 +1,61 @@
+name: sample-docling
+channels:
+  - conda-forge
+  - defaults
+
+# Table-aware PDF conversion (docling's layout model + TableFormer), used by the extraction steps
+# to recover peptide tables that the plain text layer flattens into unusable runs of numbers.
+#
+# ISOLATED DELIBERATELY -- do not fold this into sample-extraction. docling resolves numpy 2.x and
+# transformers 5.17, while sample-extraction is pinned to numpy<2 (spacy/thinc/blis require numpy
+# 1.x, see that file's own note) and transformers 5.15. Installing docling alongside them moves
+# both pins and breaks every spacy-dependent extraction step -- the failure is a rebuild away and
+# would not be obvious from the diff. Measured after the split: sample-extraction still reports
+# torch 2.5.1+cu121, numpy 1.26.4, transformers 5.15.0, spacy 3.7.5, cuda True.
+#
+# Invoked by absolute path (.../envs/sample-docling/bin/...) from the extraction code, never
+# imported into it and never through `conda run` -- see KNOWN_ISSUES.md, which records that
+# `conda run -n <env>` misroutes on this host.
+#
+# After creating it, prefetch the model weights so conversion needs no network at run time:
+#   /home/<user>/miniconda3/envs/sample-docling/bin/docling-tools models download
+#
+# That CLI is NOT sufficient on its own. It writes ~/.cache/docling/models, but the conversion
+# pipeline resolves its weights through huggingface_hub.snapshot_download, which reads
+# ~/.cache/huggingface/hub -- so a machine that has only run the CLI still reaches the network on
+# the first convert and fails outright when the network is blocked. Warm the hub cache too, by
+# running one conversion with network available, then verify:
+#   HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 http_proxy=http://127.0.0.1:9 \
+#   https_proxy=http://127.0.0.1:9 ALL_PROXY=http://127.0.0.1:9 <env>/bin/python -c "<convert>"
+# Verified 2026-09-17: 12-page PDF converts in 13.5s with all traffic blocked.
+#
+# Do NOT leave the default OCR engine (RapidOCR) enabled. It ignores both caches and downloads
+# PP-OCRv6 weights from modelscope.cn at first use -- the weights are already on disk under
+# ~/.cache/docling/models/RapidOcr, but rapidocr's torch engine looks elsewhere. Use
+# TesseractCliOcrOptions(tesseract_cmd=<absolute path>) instead, or do_ocr=False where the PDF has
+# a text layer.
+dependencies:
+  - python=3.11
+  - pip
+  # OCR backend. docling can drive Tesseract directly (TesseractOcrOptions) rather than its bundled
+  # rapidocr, which keeps one OCR engine across the project. The binary is declared here for the
+  # same reason as in sample-extraction.yml: the Python wrappers shell out to `tesseract` by bare
+  # name and this host's PATH does not carry it, so an env without this line imports cleanly and
+  # then fails at the first OCR call.
+  - tesseract
+  - pip:
+      # --- PyTorch, pinned to the CPU build ---
+      # docling's layout and TableFormer passes run on CPU here by design. The GPU environments
+      # already carry torch 2.5.1+cu121 for the ESM-2 embedding work, and a second CUDA stack adds
+      # several GB to a disk that sits at ~95% full; the table pass is CPU-bound across worker
+      # threads regardless. `--extra-index-url` rather than `--index-url`: the latter would force
+      # every package in this block to come from the PyTorch index, where docling does not exist.
+      # The exact `+cpu` local versions are published only on that index, so pinning them is what
+      # actually prevents a CUDA wheel from being selected.
+      - --extra-index-url https://download.pytorch.org/whl/cpu
+      - torch==2.14.0+cpu
+      - torchvision==0.29.0+cpu
+
+      # Pinned: docling's document model changes shape across minor releases, and the extraction
+      # code reads its table cells positionally.
+      - docling==2.128.0

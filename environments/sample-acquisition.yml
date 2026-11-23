@@ -1,0 +1,43 @@
+name: sample-acquisition
+channels:
+  - conda-forge
+  - defaults
+
+# Steps 1-5: literature metadata, PDF downloads, patents, and the antimicrobial peptide
+# databases. Everything here is network and document handling.
+#
+# This environment carries NO torch, NO rdkit, NO scikit-learn and NO spacy. That is the point of
+# separating it: the acquisition steps are the ones most often re-run on their own (a failed
+# download batch, a database refresh), and they have no use for a ~3 GB machine-learning stack.
+# Creating this environment takes a fraction of the time the full one does.
+#
+# The dependency list is not hand-guessed -- it is the transitive import closure of the modules
+# these steps actually enter (sample/metadata.py, sample/pdf.py, sample/patents.py,
+# sample/databases.py), computed from the source.
+dependencies:
+  - python=3.11
+  - pip
+  - poppler          # PDF rendering
+  - pip:
+      # Core data handling
+      - pandas
+      - python-dateutil
+      - python-dotenv
+
+      # NCBI Entrez (metadata), and FASTA handling in the database scrapers
+      - biopython
+
+      # HTTP and scraping
+      - requests
+      - urllib3
+      - beautifulsoup4
+      - selenium
+      - selenium-stealth
+      - webdriver-manager
+
+      # PDF text extraction
+      - PyMuPDF
+      - pdfplumber
+
+      - tqdm
+      - openpyxl

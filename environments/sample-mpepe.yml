@@ -1,0 +1,37 @@
+# MPEPE for the Expression Wizard's learned yield estimate (sample.expression.mpepe_yield_estimate).
+#
+# WHY ITS OWN ENVIRONMENT, AND WHY THIS ONE IS DIFFERENT FROM THE OTHERS. Every other predictor
+# environment in this project (macrel, amplify, anticp2, algpred2, hemopi2/toxinpred3) is isolated
+# because of a scikit-learn/numpy pin conflict on an otherwise-current Python 3 stack. MPEPE is a
+# different, larger kind of isolation: its own code (github.com/BRITian/MPEPE) requires
+# **Python 2.7**, end-of-life since January 1st, 2020, plus **TensorFlow 1.15.0** and **Theano
+# 1.0.5** -- both themselves long unmaintained. This is real, end-of-life software with no ongoing
+# security patching, kept only because it is the working implementation of a real, published,
+# peer-reviewed model with no actively-maintained alternative. Weigh that before depending on it
+# for anything beyond what this project already scopes it for (an explicit, opt-in yield estimate,
+# never on the fast construct-design path).
+#
+# VERIFIED (2026-08-14), not merely installed: built this exact environment, ran MPEPE's own
+# bundled example (Example/high_expression_seq.fa, Example/low_expression_seq.fa) end to end, and
+# it reproduced the README's published output numbers exactly, cleanly separating the high- (AVE
+# 0.74-0.85) and low-expression (AVE 0.09-0.46) example sets. See DECISIONS.md's 2026-08-14 entry.
+#
+# TWO UNDOCUMENTED GAPS FOUND DURING THAT VERIFICATION, neither in MPEPE's own README:
+#   1. conda-forge's `python=2.7` ships a `pip` that is itself broken (`ImportError: No module
+#      named pip._internal.cli.main`) -- fixed by bootstrapping the official legacy pip via
+#      https://bootstrap.pypa.io/pip/2.7/get-pip.py (frozen at 20.3.4, pip's last Python-2 release).
+#   2. The prediction script imports `pandas`, which the README's dependency list omits entirely.
+#
+# INSTALL METHOD: this file only pins Python; the get-pip.py bootstrap and the TF/Keras/Theano/
+# pandas installs happen via `make env-mpepe`'s recipe (a plain `conda create` cannot run the
+# bootstrap script), which also clones MPEPE's own repository (code + ~130 MB of pretrained model
+# weights) into `data/mpepe/` -- gitignored, not committed, the same as other external downloads
+# (CycPeptMPDB, RefSeq genomes).
+#
+#   make env-mpepe
+name: sample-mpepe
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=2.7

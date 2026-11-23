@@ -1,0 +1,35 @@
+# Structure prediction (step 16's folding pass).
+#
+# Separate from sample-chem, which runs the rest of step 16, because ColabFold brings JAX and
+# AlphaFold2 -- a CUDA stack entirely disjoint from the PyTorch one the other environments pin.
+# Installing both in one environment makes them fight over CUDA runtime libraries, and the loser
+# fails at import with a message about libcudart rather than anything to do with folding.
+#
+# The MSA question: ColabFold normally builds an MSA with MMseqs2 against ColabFoldDB, which is
+# ~2 TB and not an option here. Peptides are run in `single_sequence` mode instead. That is the
+# standard choice for short peptides -- an MSA over a 20-residue sequence carries little signal --
+# and it keeps the prediction genuinely local rather than querying the public MMseqs2 API 35,411
+# times.
+name: sample-fold
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+# This is a TOOL environment: it holds `colabfold_batch` and nothing of this project. The sample
+# package is deliberately NOT installed here, and neither is RDKit -- the orchestration in
+# sample/folding.py runs from sample-chem and shells out to this environment, exactly as
+# sample/peptide_predictors.py reaches sample-predictors.
+#
+# Installing the package here was tried and does not work: pip has to resolve this project's
+# dependency set against AlphaFold2's, and gives up ("looking at multiple versions of sample").
+# Keeping the tool isolated sidesteps the conflict rather than pinning around it.
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - colabfold[alphafold]==1.6.2
+      # CUDA 12 JAX, left unpinned on purpose: colabfold's alphafold extra requires
+      # jax>=0.5.2,<0.11, and pinning a specific version here makes pip unsolvable rather than
+      # merely suboptimal. The cuda12 wheels bundle their own CUDA runtime, so they only need the
+      # driver to be recent enough (535 here, CUDA 12.2).
+      - jax[cuda12]

@@ -1,0 +1,45 @@
+# AMPidentifier for the benchmark-only comparator (sample/benchmark.py's fourth antibacterial
+# reference tool, alongside Macrel and AMPlify -- see sample/peptide_predictors.py's
+# AMPidentifierPredictor).
+#
+# WHY ITS OWN ENVIRONMENT. Same reasoning as every other predictor here: AMPidentifier pins its own
+# scikit-learn (see below) that would fight the pipeline's own >=1.9 requirement and the other
+# predictors' pins if dropped into a shared environment. sample/peptide_predictors.py locates it by
+# environment path (env="sample-ampidentifier") and shells out to its console-script directly (no
+# AMPlify-style python/script indirection needed -- AMPidentifier's own entry point does not have
+# AMPlify's PATH-resolution bug), so nothing here needs the sample package installed.
+#
+# INSTALL METHOD, verified 2026-09-04: `pip install ampidentifier` is genuinely the easy path the
+# tool's own README promises -- BUT with one real, load-bearing correction:
+#
+# AMPidentifier's own PyPI metadata declares `Requires-Dist: scikit-learn` with NO upper bound, so
+# a bare `pip install ampidentifier` pulls the current scikit-learn (1.9.0 at verification time).
+# Its five pickled models (RF/SVM/GB/XGB/LGBM, bundled inside the wheel under
+# amp_identifier/models/*.pkl -- despite the README's claim that "trained model files are not
+# bundled in the pip package", v2.0.3's wheel DOES bundle all ~64MB of them) were pickled under
+# scikit-learn 1.8.0. Loaded under 1.9.0, `joblib.load()` on the voting-ensemble model crashes
+# outright: `ModuleNotFoundError: No module named '_loss'` (an internal sklearn module scikit-learn
+# 1.9 relocated) -- not a warning, a hard failure, confirmed with a real 3-sequence run on this
+# host. Pinning `scikit-learn==1.8.0` alongside `ampidentifier==2.0.3` resolves in one `pip install`
+# (pip is free to pick 1.8.0 since the tool's own bound is unpinned) and every model loads and
+# predicts cleanly.
+#
+# A second, separate gotcha (kept out of this environment, handled in AMPidentifierPredictor
+# itself): AMPidentifier's feature extractor (modlamp's GlobalDescriptor) recognizes only the 20
+# standard amino acids -- `KeyError: 'X'` -- and that KeyError kills feature extraction for the
+# WHOLE submitted batch, not just the offending sequence (confirmed: one bad sequence among three
+# good ones loses all three). AMPidentifierPredictor pre-filters non-standard-residue sequences out
+# of the FASTA before the subprocess ever runs, the same way AMPlifyPredictor does for AMPlify's own
+# footprint.
+#
+#   make env-ampidentifier        # or: conda env create -f environments/sample-ampidentifier.yml
+name: sample-ampidentifier
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - ampidentifier==2.0.3
+      - scikit-learn==1.8.0

@@ -1,0 +1,18 @@
+# Macrel for the annotator (sample/peptide_predictors.py's MacrelPredictor).
+#
+# A tool environment of its own, separate from sample-predictors, for the reason recorded in
+# sample-predictors.yml: macrel pins its own scikit-learn and numpy, and dropping it into the
+# shared predictors environment starts a pin fight that risks the other predictors' pickles.
+# sample/peptide_predictors.py locates macrel by environment path and shells out to it, exactly as
+# folding reaches sample-fold, so nothing here needs the sample package installed.
+#
+# MacrelPredictor's two real bugs (missing --keep-negatives; the output filename filter) are fixed
+# and tested; this environment is what makes the adapter actually runnable in a release build.
+name: sample-macrel
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.9
+  - macrel

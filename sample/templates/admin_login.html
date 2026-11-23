@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card p-4 mt-4">
+            <h1 class="h4 fw-bold mb-1"><span class="text-gradient">Administration</span></h1>
+            <p class="text-muted small mb-4">Sign in to manage accounts and correct records.</p>
+
+            {% if error %}
+            <div class="alert alert-danger" role="alert">{{ error }}</div>
+            {% endif %}
+
+            {% if no_accounts %}
+            {# A fresh installation has no accounts and no way to make one from here: creating an #}
+            {# admin through an unauthenticated form would let the first passer-by claim the site. #}
+            <div class="alert alert-warning" role="status">
+                <strong>No administrator accounts exist yet.</strong>
+                Create the first one from the shell, where being able to run the command is itself
+                the proof of authority:
+                <pre class="mb-0 mt-2"><code>sample-cli admin create &lt;username&gt;</code></pre>
+            </div>
+            {% endif %}
+
+            <form method="post" action="/admin/login">
+                <div class="mb-3">
+                    <label for="username" class="form-label small text-muted text-uppercase fw-bold">Username</label>
+                    <input class="form-control" id="username" name="username" autocomplete="username"
+                           autofocus required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label small text-muted text-uppercase fw-bold">Password</label>
+                    <input class="form-control" id="password" name="password" type="password"
+                           autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="btn btn-gradient w-100">Sign in</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

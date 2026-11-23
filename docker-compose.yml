@@ -1,0 +1,111 @@
+# Infrastructure for the sAMPle webserver.
+#
+#   redis   -- the Celery broker and task-state backend
+#   web     -- the Flask dashboard, behind gunicorn
+#   worker  -- the Celery worker that runs prediction jobs
+#   flower  -- optional queue monitoring UI, started with `--profile monitoring`
+#
+# `web` and `worker` run the same image: the worker loads the same model pickles the server
+# advertises, so they must agree on scikit-learn and xgboost versions exactly. Splitting them into
+# separate images is how that stops being guaranteed.
+#
+#   docker compose up -d --build
+#   docker compose --profile monitoring up -d      # with Flower on :5555
+#
+# The host `data/` directory is mounted rather than copied. It holds the trained models, the
+# release datasets and the prediction database, all of which are produced by the pipeline outside
+# these containers and must outlive them.
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Queued jobs are cheap to lose -- the SQLite record shows them as PENDING and they can be
+    # resubmitted -- so persistence is off deliberately, and `appendonly no` keeps it that way.
+    command: ["redis-server", "--appendonly", "no", "--save", ""]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [sample]
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      SAMPLE_BROKER_URL: redis://redis:6379/0
+      SAMPLE_RESULT_BACKEND: redis://redis:6379/1
+      SAMPLE_PREDICTIONS_DB: /app/data/predictions.db
+      SAMPLE_MODEL_DIR: /app/data/sample_final_release/models
+      # Transformer weights land here rather than in the image, so `web` and `worker` share one
+      # copy and a rebuild does not re-download them.
+      HF_HOME: /app/data/huggingface
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks: [sample]
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      SAMPLE_BROKER_URL: redis://redis:6379/0
+      SAMPLE_RESULT_BACKEND: redis://redis:6379/1
+      SAMPLE_PREDICTIONS_DB: /app/data/predictions.db
+      SAMPLE_MODEL_DIR: /app/data/sample_final_release/models
+      HF_HOME: /app/data/huggingface
+    volumes:
+      - ./data:/app/data
+    # --concurrency=2 because a task can hold a loaded transformer; these are memory-bound, so
+    # more processes means more copies of the weights, not more throughput.
+    # --max-tasks-per-child recycles workers to bound the leak that torch + repeated model loads
+    # accumulate over a long-running process.
+    command: >
+      celery -A sample.tasks.celery_app worker
+      --loglevel=INFO
+      --queues=sample-predictions
+      --concurrency=2
+      --max-tasks-per-child=25
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A sample.tasks.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 45s
+    networks: [sample]
+
+  flower:
+    image: mher/flower:2.0
+    restart: unless-stopped
+    profiles: [monitoring]
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      FLOWER_PORT: "5555"
+    ports:
+      - "5555:5555"
+    networks: [sample]
+
+networks:
+  sample:
+    driver: bridge

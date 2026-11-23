@@ -1,0 +1,57 @@
+% LaTeX preamble for the paper PDF build (step 47; see the Makefile's step_47 target).
+%
+% The manuscript is written in Markdown with real Unicode mathematical and typographic characters
+% (>=, <=, a check mark, superscripts, Greek). Tectonic renders through XeTeX with Latin Modern,
+% which has no glyph for several of them and silently DROPS them -- a "roc_auc >= 0.75" in the
+% source would reach the PDF as "roc_auc  0.75", turning a threshold into a typo without any error.
+%
+% Mapping them here rather than switching mainfont to a wide-coverage face (DejaVu) keeps the
+% manuscript in Latin Modern, which is what the text is set in.
+\usepackage{newunicodechar}
+\usepackage{amssymb}
+\usepackage{textcomp}
+
+\newunicodechar{≥}{\ensuremath{\geq}}
+\newunicodechar{≤}{\ensuremath{\leq}}
+\newunicodechar{−}{\ensuremath{-}}
+\newunicodechar{×}{\ensuremath{\times}}
+\newunicodechar{Δ}{\ensuremath{\Delta}}
+\newunicodechar{μ}{\ensuremath{\mu}}
+\newunicodechar{✓}{\ensuremath{\checkmark}}
+\newunicodechar{⁻}{\textsuperscript{-}}
+\newunicodechar{⁷}{\textsuperscript{7}}
+\newunicodechar{¹}{\textsuperscript{1}}
+\newunicodechar{²}{\textsuperscript{2}}
+
+% Table 1 is seven columns of prose and overruns the text block badly at full size; the benchmark
+% table is wider still. Shrinking table type is what keeps them on the page without rewriting the
+% manuscript's content to fit its own typesetting.
+\let\oldlongtable\longtable
+\def\longtable{\footnotesize\oldlongtable}
+
+% Constrain every included figure to the text width HERE rather than with a pandoc `{width=95%}`
+% attribute on each image tag. The manuscript is also read as Markdown on the repository page,
+% where that attribute is not image syntax and renders as literal "{width=95%}" text after every
+% figure. Setting it in the preamble keeps paper/README.md portable and the PDF correctly sized.
+% The figures are 300-DPI Plotly exports ~3900 px wide, so without this they overrun the page.
+%
+% graphicx is loaded explicitly because pandoc only emits it for a document that actually contains
+% an image. The supplement contains none, so \setkeys{Gin} alone fails there with the decidedly
+% unhelpful "Package keyval Error: width undefined" -- this header is shared by both documents.
+\usepackage{graphicx}
+\setkeys{Gin}{width=0.95\linewidth,keepaspectratio}
+
+% Suppress LaTeX's own "Figure N:" counter on captions. The manuscript's figure numbers come from
+% the generator's filenames (figures/NN_*.png) and are what the prose cites -- "(Figure 14)" -- so
+% each caption carries its number explicitly as text. LaTeX's counter numbers by POSITION instead,
+% which does not agree: the figures appear in citation order, and citation order is not numeric
+% order here (Figure 14 is cited in Section 3.2, before Figure 3 in Section 3.3). Left on, every
+% caption reads "Figure 3: Figure 14. ..." -- numbered twice, and disagreeing with itself.
+\usepackage{caption}
+\captionsetup[figure]{labelformat=empty}
+
+% Figures land where they are cited rather than drifting pages away to a float page: the
+% manuscript's Results sections read as prose-then-evidence, and LaTeX's default float placement
+% breaks that pairing in a document whose sections are single dense paragraphs.
+\usepackage{float}
+\floatplacement{figure}{H}

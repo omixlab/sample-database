@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - sAMPle Dashboard</title>
+    <script>
+        // Applied here, in <head>, and deliberately not inside DOMContentLoaded: that event fires
+        // only once the entire document has been parsed, so on a large page the hardcoded dark
+        // default above stays on screen until parsing finishes. The extractions listing used to
+        // render every record in one table and took seconds to parse, which made it look like the
+        // only page that opened in night mode -- it was simply the only page slow enough for the
+        // switch to be visible. Running before the body is parsed means no page can flash.
+        (function () {
+            try {
+                var saved = localStorage.getItem("theme");
+                if (saved) document.documentElement.setAttribute("data-bs-theme", saved);
+            } catch (e) {
+                // localStorage throws when cookies are blocked; the default theme is fine.
+            }
+        })();
+    </script>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0a0f1d;
+            --bg-card: rgba(15, 23, 42, 0.75);
+            --border-card: rgba(255, 255, 255, 0.09);
+            --text-color: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary-glow: rgba(14, 165, 233, 0.12);
+            --brand-primary: #0ea5e9;
+            --brand-secondary: #0d9488;
+        }
+        
+        [data-bs-theme="light"] {
+            --bg-color: #f8fafc;
+            --bg-card: rgba(255, 255, 255, 0.90);
+            --border-card: rgba(0, 0, 0, 0.08);
+            --text-color: #0f172a;
+            --text-muted: #475569;
+            --primary-glow: rgba(14, 165, 233, 0.05);
+            --brand-primary: #0284c7;
+            --brand-secondary: #0f766e;
+        }
+
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color) !important;
+            color: var(--text-color) !important;
+            background-image: 
+                radial-gradient(at 10% 15%, var(--primary-glow) 0px, transparent 45%),
+                radial-gradient(at 90% 85%, rgba(13, 148, 136, 0.08) 0px, transparent 45%) !important;
+            min-height: 100vh;
+            transition: background-color 0.25s ease, color 0.25s ease;
+        }
+        
+        .navbar {
+            backdrop-filter: blur(12px);
+            background-color: rgba(10, 15, 29, 0.85) !important;
+            border-bottom: 1px solid var(--border-card);
+        }
+        
+        [data-bs-theme="light"] .navbar {
+            background-color: rgba(255, 255, 255, 0.88) !important;
+        }
+        
+        .card {
+            background-color: var(--bg-card) !important;
+            border: 1px solid var(--border-card) !important;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border-radius: 14px;
+            transition: all 0.25s ease;
+        }
+        
+        .card:hover {
+            border-color: rgba(14, 165, 233, 0.3) !important;
+        }
+        
+        .text-gradient {
+            background: linear-gradient(135deg, #0ea5e9, #0d9488);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        [data-bs-theme="light"] .text-gradient {
+            background: linear-gradient(135deg, #0284c7, #0f766e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .btn-gradient {
+            background: linear-gradient(135deg, #0ea5e9, #0d9488);
+            color: #fff !important;
+            border: none;
+            box-shadow: 0 4px 14px rgba(14, 165, 233, 0.3);
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-gradient:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(14, 165, 233, 0.45);
+            color: #fff !important;
+        }
+        
+        pre {
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--border-card);
+            border-radius: 8px;
+            padding: 1rem;
+            color: #10b981;
+            max-height: 500px;
+        }
+        
+        [data-bs-theme="light"] pre {
+            background: rgba(0, 0, 0, 0.04);
+            color: #0f766e;
+        }
+
+        /* Accessibility: ensure badges have comfortable contrast and padding */
+        .badge {
+            font-weight: 500;
+            letter-spacing: 0.01em;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg sticky-top">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+                <span class="fs-3 fw-bold text-gradient">sAMPle</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto gap-2 align-items-center">
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'dashboard' %}active{% endif %}" href="/">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'datasets' %}active{% endif %}" href="/datasets">Datasets</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'models' %}active{% endif %}" href="/models">ML Models</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'analytics' %}active{% endif %}" href="/analytics">Analytics</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'databases' %}active{% endif %}" href="/databases">External DBs</a>
+                    </li>
+                    <!-- Theme Toggle Button -->
+                    <li class="nav-item ms-lg-3">
+                        <button class="btn btn-outline-secondary btn-sm rounded-circle d-flex align-items-center justify-content-center" id="themeToggleBtn" style="width: 38px; height: 38px;" title="Toggle Day/Night Mode">
+                            <span id="themeToggleIcon">🌙</span>
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container my-5">
+        {% block content %}{% endblock %}
+    </div>
+    
+    <footer class="text-center py-5 border-top border-secondary-subtle mt-5">
+        <p class="text-muted mb-0">&copy; 2026 sAMPle. Advanced Antimicrobial Peptide Discovery Platform.</p>
+    </footer>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Day/Night theme toggler script -->
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const htmlElement = document.documentElement;
+            const btn = document.getElementById("themeToggleBtn");
+            const icon = document.getElementById("themeToggleIcon");
+
+            // The theme itself is applied by the inline script in <head>, before the body is
+            // parsed. Only the icon is set here, because the button it belongs to does not exist
+            // until the navbar has been parsed.
+            const savedTheme = htmlElement.getAttribute("data-bs-theme") || "dark";
+            icon.textContent = savedTheme === "light" ? "☀️" : "🌙";
+
+            btn.addEventListener("click", () => {
+                const currentTheme = htmlElement.getAttribute("data-bs-theme");
+                const nextTheme = currentTheme === "light" ? "dark" : "light";
+                
+                htmlElement.setAttribute("data-bs-theme", nextTheme);
+                localStorage.setItem("theme", nextTheme);
+                icon.textContent = nextTheme === "light" ? "☀️" : "🌙";
+                
+                // Dispatch event so sub-components (like SMILES Drawer) can redraw
+                window.dispatchEvent(new CustomEvent("themechange", { detail: { theme: nextTheme } }));
+            });
+        });
+    </script>
+</body>
+</html>

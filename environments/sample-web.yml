@@ -1,0 +1,123 @@
+name: sample-web
+channels:
+  - conda-forge
+  - bioconda      # supplies `blast`; it is on no other channel, and without this line
+                  # `conda env create` fails outright with PackagesNotFoundError
+  - defaults
+
+# Step 39: the dashboard, and the Celery worker that runs its background prediction jobs.
+#
+# VERSION PINS BELOW ARE SHARED WITH sample-ml.yml AND MUST STAY IN STEP.
+#
+# scikit-learn and xgboost appear here even though no module in the webserver imports them
+# directly. They are needed at UNPICKLE time: sample/model_registry.py loads estimators trained
+# by step 33, and the pickle names `sklearn.ensemble._forest` / `xgboost.sklearn` internally.
+# A static import scan of the source misses this entirely, which is exactly how an environment
+# ends up able to start the server and unable to serve a single prediction.
+#
+# The versions must equal sample-ml.yml's. `make check-envs` verifies it.
+dependencies:
+  - python=3.11
+  - pip
+  - blast          # `blastp` / `makeblastdb`, shelled out to by the sequence-search page
+  - dssp           # `mkdssp`, for the peptide page's DSSP secondary-structure track (sample.structure_analysis)
+  - pip:
+      # Core data handling
+      - pandas
+      # Pinned <2 to match sample-extraction, which cannot go higher: its spacy 3.7.5 /
+      # thinc / blis stack requires numpy 1.x. The pin has to be shared because pickles cross
+      # that boundary -- step 8 writes rf_filter_model.pkl here and step 7 loads it in
+      # sample-extraction -- and NumPy 2 changed the array pickle format. `make check-envs`
+      # asserts the installed versions actually agree.
+      - numpy<2
+      - python-dotenv
+
+      # Web dashboard and JSON API. FastAPI generates the OpenAPI document from the route
+      # signatures, so no separate spec package is needed.
+      - fastapi
+      - uvicorn[standard]    # ASGI server used by the docker-compose `web` service
+      - pydantic
+      - jinja2               # the dashboard templates, rendered through Starlette
+      # The admin interface (sample/admin.py, sample/api/admin.py) reads and writes accounts
+      # through the entity classes, and `sample/models.py` imports SQLAlchemy at module level.
+      # The public pages do not need it -- `sample/db.py` still uses raw sqlite3 and
+      # `sample/engine.py` imports lazily inside its functions -- which is why the app ran here
+      # without it until now, and why its absence would not have shown up until the first request
+      # to /admin.
+      - sqlalchemy>=2.0
+      # Required for every HTML form the app accepts -- the admin sign-in and account forms, and
+      # the form-encoded branch of POST /predict. Starlette 1.4 asserts on this for *all* form
+      # parsing, not only file uploads; under 1.3 a urlencoded body parsed without it, which is
+      # why nothing declared it and why the gap only appeared when the web environment moved to
+      # the newer Starlette.
+      - python-multipart
+
+      # Background prediction jobs
+      - celery               # sample/tasks.py -- the prediction worker
+      - redis                # Celery broker/result-backend client
+
+      # sample/db.py's get_peptide() imports sample.nlp for extract_atcc_id -- a one-line regex
+      # helper with no real dependency of its own, but nlp.py itself does `import ahocorasick` at
+      # module level (the organism/cell-line/peptide-name automata built for extraction), so
+      # merely importing the module for that one function pulls this in too. Same shape as the
+      # sqlalchemy gap above: nothing on the public pages needed it until the first request to a
+      # peptide detail page (/search/peptide/<id>), which is exactly where it surfaced.
+      - pyahocorasick
+
+      # Imported lazily, inside the functions that need it, by four things this environment
+      # serves: the peptide page's DSSP / Ramachandran / pLDDT card (sample/structure_analysis.py),
+      # its PDB-homology superposition (sample/pdb_homology.py), its ADMET summary
+      # (sample/admet.py, via Bio.SeqUtils.ProtParam) and the Expression Wizard's GenBank export
+      # (sample/expression.py's construct_genbank). Every one of those imports sits inside a
+      # function, so the app imports, starts, and serves the whole dashboard without this package:
+      # the three peptide-page cards are skipped by callers that catch and log at debug level, and
+      # only the GenBank download fails outright, with a 500. Exactly the sqlalchemy /
+      # python-multipart shape above -- absent from the declaration, invisible until one specific
+      # request. It went unnoticed longer than those two because neither real run path exercises
+      # this environment: the Dockerfile builds from `environments/sample.yml`, and on this host
+      # `conda run -n sample-web` resolves to `sample` anyway (see KNOWN_ISSUES.md).
+      - biopython
+      # Top500 Ramachandran reference tables (Lovell et al. 2003) for
+      # sample/structure_analysis.py -- read as DATA FILES via importlib.metadata; the
+      # package is never imported (its __init__ pulls in matplotlib.pyplot, which has no
+      # place in a request path). Declares no licence, knowingly accepted -- see DECISIONS.md.
+      - pyrama
+      # Contour extraction over those tables. A matplotlib dependency, but imported
+      # directly by this project, so declared directly rather than assumed.
+      - contourpy
+
+      # --- Pinned: must equal sample-ml.yml. Needed to UNPICKLE trained models. ---
+      - scikit-learn==1.9.0
+      - xgboost==3.2.0
+      # ---------------------------------------------------------------------------
+
+      # Featurization at inference time, in sample/inference.py. These must reproduce the
+      # training features exactly, which is why the same libraries appear here as in the
+      # enrichment step rather than a lighter substitute.
+      - rdkit
+      # The "descriptors" feature block is half peptides.py-derived (boman_index,
+      # aliphatic_index, hydrophobic_moment, isoelectric_point, net_charge_ph7) -- inference.py's
+      # _descriptor_row calls sample.enrichment.peptide_descriptors for exactly those, rather
+      # than reimplementing them, so the served value equals the trained column. Without this
+      # package that function returns an empty mapping and every one of those five columns
+      # arrives as NaN: not a crash, just a descriptors model quietly scoring on five missing
+      # features. Absent here until the block was widened past the RDKit-only six.
+      - peptides
+      # Same cu121 pin and rationale as sample-ml.yml (this machine's driver tops out at CUDA
+      # 12.2; the default wheel targets CUDA 13 and silently falls back to CPU) -- kept identical
+      # to sample-ml.yml here too, not just for GPU-accelerated /predict scoring, but because a
+      # fine-tuned model's pickle (sample.esm_finetune.ESM2FineTuneEstimator) crossing the
+      # train/serve boundary needs BOTH torch and transformers to match on both sides, the same
+      # reason scikit-learn/xgboost are pinned identically above -- transformers is pinned, not
+      # just parity-checked by `make check-envs`, since a check only catches drift after the two
+      # environments already disagree.
+      - --extra-index-url https://download.pytorch.org/whl/cu121
+      - torch==2.5.1+cu121
+      - transformers==5.16.1
+      # Reads the Chroma index step 30 builds (sample/embeddings.py) to answer the "Embedding
+      # match" search mode -- embeds the query sequence with the same ESM-2 model, then a k-NN
+      # query against the persisted collection. Read-only from this environment; nothing here
+      # writes to the index.
+      - chromadb
+
+      - tqdm

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card p-4">
+    <a href="/extractions" class="btn btn-outline-secondary btn-sm mb-4" style="width: fit-content;">&larr; Back to List</a>
+    
+    <h1 class="display-6 fw-bold mb-3"><span class="text-gradient">Visualizing Extraction: {{ filename }}</span></h1>
+    <p class="text-muted mb-4"><strong>Type:</strong> {{ item_type.upper() }} | <strong>Source:</strong> {{ source.upper() }}</p>
+    
+    <h2 class="h5 fw-bold mb-3 mt-4">Peptides Extracted</h2>
+    {% for pep in json_data %}
+    <div class="bg-body-tertiary p-4 rounded border border-secondary-subtle mb-3">
+        <p class="mb-2"><strong class="text-gradient">Sequence:</strong> <span class="font-monospace fw-bold">{{ pep.peptide_sequence }}</span></p>
+        <p class="mb-3 text-muted small"><strong class="text-secondary">SMILES / HELM:</strong> <span class="font-monospace">{{ pep.SMILES or pep.HELM or 'N/A' }}</span></p>
+        
+        <h4 class="h6 fw-bold mb-2">Biological Activities</h4>
+        <ul class="list-group list-group-flush bg-transparent">
+            {% for act in pep.biological_activities %}
+            <li class="list-group-item bg-transparent text-muted px-0 py-1 border-0">
+                <span class="badge bg-success-subtle text-success me-2">{{ act.activity_group }}</span>
+                Value: <strong>{{ act.value }}</strong> {{ act.unit or '' }} &mdash; Target: <em>{{ act.target_organism }}</em>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+    
+    <h2 class="h5 fw-bold mb-3 mt-4">Raw JSON Details</h2>
+    <pre><code>{{ json_pretty }}</code></pre>
+</div>
+{% endblock %}

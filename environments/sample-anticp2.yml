@@ -1,0 +1,29 @@
+# AntiCP 2.0 for the annotator (sample/peptide_predictors.py's "anticp" adapter).
+#
+# WHY ITS OWN ENVIRONMENT. AntiCP 2.0 (Raghava lab) predicts anticancer peptides. Like the other
+# Raghava-lab tools it is distributed as a standalone archive, not a PyPI package, and its pickled
+# scikit-learn models require the scikit-learn version they were trained with -- which conflicts
+# with the pipeline's own >=1.9 requirement and with hemopi2/toxinpred3's pins. Isolating it is the
+# only way each keeps the exact version its models need. sample/peptide_predictors.py locates it by
+# environment path (env="sample-anticp2") and shells out, so nothing here needs the sample package.
+#
+# INSTALL METHOD, corrected 2026-08-14: `pip install git+https://github.com/raghavagps/anticp2.git`
+# fails outright -- the repo has no setup.py/pyproject.toml. AntiCP2 IS on PyPI, just old:
+# `anticp2==1.1` declares `Requires-Python >=3.3,<=3.7` -- a PEP 440 specifier WITHOUT a wildcard,
+# so it is a strict version comparison: `3.7.12 <= 3.7` is False (3.7.12 > 3.7.0), and pip rejects
+# it even under python=3.7 (tried and confirmed). python=3.6 satisfies `<=3.7` unambiguously.
+#
+#   make env-anticp2        # or: conda env create -f environments/sample-anticp2.yml
+name: sample-anticp2
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.6
+  - pip
+  - numpy
+  - pandas
+  - scikit-learn
+  - pip:
+      - anticp2==1.1

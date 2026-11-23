@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card p-4 mb-4">
+    <h1 class="display-6 fw-bold mb-2">
+        <span class="text-gradient">Family {{ family_id }}</span>
+    </h1>
+    <p class="text-muted mb-0">
+        {{ "{:,}".format(total) }} peptide{{ '' if total == 1 else 's' }} in this family.
+        {% if pfam_url %}
+        <a href="{{ pfam_url }}" target="_blank" rel="noopener noreferrer">View {{ family_id }} at InterPro/Pfam →</a>
+        {% else %}
+        {# A SAMPLE cluster is a near-identity grouping made here, not a curated family, and its id
+           has no meaning outside this dataset -- so it is deliberately not linked anywhere. #}
+        <span class="badge bg-secondary">grouped by near-identity in this project</span>
+        {% endif %}
+    </p>
+</div>
+
+<div class="card p-4">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr><th>Entry</th><th>Sequence</th><th>Length</th><th>Source</th><th class="text-end">Action</th></tr>
+            </thead>
+            <tbody>
+                {% for m in members %}
+                <tr>
+                    <td><strong>{{ m.entry_id }}</strong></td>
+                    <td class="font-monospace small text-break" style="max-width: 460px;">{{ m.sequence }}</td>
+                    <td class="text-muted">{{ m.sequence|length }}</td>
+                    <td>{% if m.source %}<span class="badge bg-secondary">{{ m.source }}</span>{% endif %}</td>
+                    <td class="text-end">
+                        <a href="/search/peptide/{{ m.entry_id }}" class="btn btn-sm btn-outline-primary px-3">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not members %}
+                <tr><td colspan="5" class="text-center py-5 text-muted">No members found for this family.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if pages > 1 %}
+    {% set window_start = [1, page - 2]|max %}
+    {% set window_end = [pages, page + 2]|min %}
+    <nav aria-label="Family members" class="mt-3">
+        <ul class="pagination pagination-sm justify-content-center mb-0 flex-wrap">
+            <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                <a class="page-link" href="/search?family={{ family_id }}&page={{ page - 1 }}">Previous</a>
+            </li>
+            {% if window_start > 1 %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+            {% for p in range(window_start, window_end + 1) %}
+            <li class="page-item {% if p == page %}active{% endif %}">
+                <a class="page-link" href="/search?family={{ family_id }}&page={{ p }}">{{ p }}</a>
+            </li>
+            {% endfor %}
+            {% if window_end < pages %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+            <li class="page-item {% if page == pages %}disabled{% endif %}">
+                <a class="page-link" href="/search?family={{ family_id }}&page={{ page + 1 }}">Next</a>
+            </li>
+        </ul>
+        <p class="text-center text-muted small mt-2 mb-0">Page {{ page }} of {{ pages }}</p>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,63 @@
+# amPEPpy for the benchmark-only comparator (sample/benchmark.py's antibacterial reference tools,
+# alongside Macrel, AMPlify and AMPidentifier -- see sample/peptide_predictors.py's
+# AmPEPpyPredictor).
+#
+# WHY ITS OWN ENVIRONMENT. Same reasoning as every other predictor here: amPEPpy pins a
+# scikit-learn version (below) that would fight the pipeline's own >=1.9 requirement, and the other
+# predictors' pins, if dropped into a shared environment. sample/peptide_predictors.py locates it by
+# environment path (env="sample-ampeppy") and shells out to its console-script directly (its
+# pip-installed entry point carries an absolute shebang baked in at install time -- confirmed by
+# reading the installed script on this host -- so no AMPlify-style python/script indirection is
+# needed), so nothing here needs the sample package installed.
+#
+# INSTALL METHOD, verified 2026-09-04: amPEPpy (tlawrence3/amPEPpy) is NOT on PyPI or bioconda. Its
+# repo has a real setup.py (packages=["amPEPpy"], entry_points console_scripts=["ampep"]), so
+# `pip install git+https://github.com/tlawrence3/amPEPpy.git` installs cleanly and the resulting
+# `ampep` command works immediately -- no correction needed here, unlike AMPlify/AntiCP2/AMPidentifier.
+#
+# ONE GOTCHA, load-bearing but NOT a pip problem: `setup.py` declares no `package_data`/
+# `MANIFEST.in`, so `pip install` -- from this git URL or a local clone -- installs the `amPEPpy`
+# python package alone and never ships `pretrained_models/amPEP.model`, the tool's own published,
+# manuscript-accuracy Random Forest (160 trees, trained on the paper's AMP/nonAMP sets). Fetching
+# that file needs the repo itself, so `make env-ampeppy` also clones it (code + the ~17MB model,
+# ~70MB total) into `data/ampeppy/` -- gitignored, not committed, the same convention MPEPE's env
+# uses for its own pretrained weights (see environments/sample-mpepe.yml). AmPEPpyPredictor reads
+# the model from that clone; the `ampep` command itself still comes from THIS environment.
+#
+# SCIKIT-LEARN PIN: the bundled `amPEP.model` pickle was built under scikit-learn 1.4.0 (confirmed
+# by loading it and reading sklearn's own `InconsistentVersionWarning`, which names the exact
+# version). amPEPpy's own requirements.txt only asks for `scikit-learn >= 1.0.0`, which on a fresh
+# solve pulls whatever is current (1.9.0 at verification time) and loads the pickle anyway --
+# scikit-learn's pickle compatibility tends to hold across minor/major versions for a plain
+# RandomForestClassifier -- but it emits that InconsistentVersionWarning on every single call and
+# carries the "might lead to breaking code or invalid results" risk scikit-learn's own docs warn
+# about. Pinning the exact training version (1.4.0) here, which conda-forge carries and solves
+# cleanly against a python=3.11 pandas/numpy/biopython set (numpy resolves to 1.26.x, the last
+# NumPy-1 line sklearn 1.4.0's compiled extensions were built against), makes every prediction run
+# warning-free and reproduces the manuscript's own numbers rather than a version-drifted
+# approximation of them.
+#
+# VERIFIED (2026-09-04), not merely installed: built this exact environment, ran `ampep predict`
+# against real peptides through the bundled model, and confirmed the real output shape (see
+# AmPEPpyPredictor's docstring for the exact numbers). Also probed amPEPpy directly with a battery
+# of degenerate inputs (a single residue, a non-standard residue "X", a trailing "*" stop marker,
+# and even a fully empty sequence) -- unlike macrel/AMPlify, none of them crashed it; its
+# Distribution-descriptor featurizer degrades to an all-zero feature row rather than raising.
+#
+#   make env-ampeppy        # or: conda env create -f environments/sample-ampeppy.yml
+name: sample-ampeppy
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pandas
+  - biopython
+  # Pinned to the exact version amPEP.model was pickled under -- see above. Pulls numpy<2
+  # transitively (sklearn 1.4.0 predates the NumPy 2 ABI break), which is deliberate, not merely
+  # incidental: a newer numpy resolved alongside an older sklearn is the same kind of ABI mismatch
+  # sample-predictors.yml and sample-algpred2.yml both warn about for their own pickles.
+  - scikit-learn=1.4.0
+  - pip:
+      - git+https://github.com/tlawrence3/amPEPpy.git

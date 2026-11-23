@@ -1,0 +1,34 @@
+# AlgPred 2.0 for the annotator (allergenicity prediction) -- vetting environment.
+#
+# WHY ITS OWN ENVIRONMENT. Same Raghava-lab shape as anticp2/hemopi2/toxinpred3: a pip package
+# wrapping a pickled scikit-learn model, whose pin may not match the shared pipeline pin (>=1.9).
+# Isolating it from the start avoids repeating the toxinpred3/anticp2 install incidents.
+#
+# INSTALL METHOD: `pip install algpred2` (real PyPI package, unlike anticp2's git URL which fails
+# outright). PyPI declares `Requires-Python >=3.6` with no upper bound, so no PEP-440 strict-<=
+# trap like anticp2's `<=3.7`.
+#
+# STATUS (2026-08-14): built AND working, verified against real peptides. Its shipped
+# RandomForest pickle (`algpred2/model/rf_model`) was trained with scikit-learn 0.19.2 -- ancient
+# enough that the default (unpinned) scikit-learn (1.7.2 here) fails exactly like toxinpred3's
+# pickle does ("node array from the pickle has an incompatible dtype": the pickle predates the
+# `missing_go_to_left` Tree field sklearn 1.3 introduced). Unlike toxinpred3, this one IS
+# fixable: scikit-learn==1.2.2 loads it (with a harmless "unpickling from version 0.19.2" warning)
+# -- but only once numpy is also pinned <2; sklearn 1.2.2's compiled Cython extensions were built
+# against numpy 1.x's C ABI and raise "numpy.dtype size changed" against numpy 2.x. Both pins
+# together: real predictions confirmed end to end (`algpred2 -i pep.fa -o out.csv` ->
+# `ID,Sequence,ML_Score,Prediction`).
+#
+#   make env-algpred2       # or: conda env create -f environments/sample-algpred2.yml
+name: sample-algpred2
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - numpy<2
+  - pandas
+  - scikit-learn==1.2.2
+  - pip:
+      - algpred2

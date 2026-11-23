@@ -1,0 +1,55 @@
+name: sample-predictors
+channels:
+  - conda-forge
+  - defaults
+
+# Isolated environment for the third-party activity predictors invoked by step 16
+# (sample/peptide_predictors.py).
+#
+# WHY THIS IS SEPARATE, and not merged into sample.yml:
+#
+#   hemopi2 and toxinpred3 ship pickled scikit-learn estimators built with scikit-learn 1.3.x.
+#   Loading them under a newer scikit-learn either raises InconsistentVersionWarning and returns a
+#   subtly different estimator, or fails outright. Installing them into the main environment
+#   silently DOWNGRADED scikit-learn 1.9.0 -> 1.3.1 there, which would have changed the behaviour
+#   of every model trained by step 33 without anything reporting it. The pin below is therefore
+#   load-bearing, not cosmetic -- do not relax it to match the main environment.
+#
+#   The torch build also differs: this environment takes the CPU wheel deliberately. These
+#   predictors run once per unique sequence and are not the bottleneck, and keeping CUDA out of
+#   here avoids two environments contending for the same GPU when step 16 runs alongside the
+#   ESM-2 embedding pass in the main environment.
+#
+# The adapters in sample/peptide_predictors.py locate this environment by name via
+# SAMPLE_PREDICTOR_ENV (default "sample-predictors") and shell out with `conda run`. They verify
+# each executable actually exists in the environment's bin/ before reporting it as available, so
+# a partial install degrades to "predictor unavailable" and contributes no columns, rather than
+# fabricating zeros.
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      # Pinned: the shipped model pickles were built against this version. See above.
+      - scikit-learn==1.3.1
+      - numpy<2            # scikit-learn 1.3.1 predates the NumPy 2 ABI break
+      - pandas
+      - torch              # CPU wheel; see above
+
+      # Hemolytic activity. Provides both hemopi2_classification (used) and hemopi2_regression
+      # (installed, not yet wired -- see the backlog).
+      - hemopi2==1.3
+
+      # Peptide toxicity.
+      - toxinpred3==1.4
+
+      # NOT INSTALLED HERE, and deliberately so:
+      #
+      #   macrel   -- pulls its own pinned scikit-learn and a conflicting numpy; needs a third
+      #               environment of its own rather than a pin fight inside this one.
+      #   AMPlify  -- TensorFlow/Keras based; no PyPI distribution, install is from source.
+      #   AntiCP   -- no installable package published; only a web server and a source tarball.
+      #
+      # peptide_predictors reports these as unavailable and emits no columns for them, which is
+      # why `availability` currently reads {'macrel': False, 'amplify': False, 'anticp': False,
+      # 'hemopi2': True}. Adding any of them means adding an environment file beside this one,
+      # not adding a line here.

@@ -1,0 +1,38 @@
+name: sample-langextract
+channels:
+  - conda-forge
+  - defaults
+
+# LangExtract (google/langextract) driven against the LOCAL Ollama server, used as the default
+# structured-extraction backend for peptide activity records, with the docling table backend as the
+# fallback.
+#
+# WHY A SEPARATE ENVIRONMENT. Same reasoning as sample-docling.yml: this project pins
+# sample-extraction to numpy<2 (spacy/thinc/blis need numpy 1.x) and transformers 5.15, and a new
+# dependency tree resolved into that environment moves those pins and silently breaks every
+# spacy-dependent step. langextract pulls its own pydantic/httpx stack, so it is installed apart and
+# invoked as a subprocess by absolute path (.../envs/sample-langextract/bin/python), never imported
+# into the extraction process. `conda run -n <env>` is NOT used: KNOWN_ISSUES.md records that it
+# misroutes on this host.
+#
+# LOCAL ONLY -- NO REMOTE API. langextract defaults to Gemini and will happily call Google's API if
+# given a key. This project does not: the backend always passes `model_url` pointing at the local
+# Ollama server and a `model_id` that is an Ollama tag (sample.config.DEFAULT_EXTRACT_MODEL,
+# "gemma4:latest" here). No API key is read, set, or required. Verify offline operation the same way
+# the docling environment is verified, by blocking egress and confirming a run still succeeds:
+#   http_proxy=http://127.0.0.1:9 https_proxy=http://127.0.0.1:9 ALL_PROXY=http://127.0.0.1:9 \
+#   <env>/bin/python sample/_langextract_worker.py <text file> --out /tmp/out.json
+#
+# The Ollama server itself must already hold the model (`ollama pull gemma4:latest`); langextract
+# does not download weights.
+#
+# Ollama does not support langextract's `output_schema`, so `fence_output` and
+# `use_schema_constraints` are deliberately left unset -- the provider factory auto-configures them.
+# Passing them explicitly is what the upstream README warns against.
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      # Pinned: langextract's result objects (result.extractions, Extraction.char_interval) are read
+      # positionally by _langextract_worker.py, and the shape has moved across minor releases.
+      - langextract==1.7.0

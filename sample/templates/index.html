@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4 mb-5">
+    <div class="col-md-12">
+        <div class="card p-4">
+            <h1 class="display-5 fw-bold mb-3"><span class="text-gradient">sAMPle Search & Discovery</span></h1>
+            <p class="lead text-muted mb-0">Retrieve details from consensus datasets via text queries, or execute sequence-based BLAST alignment searches against the structural baseline database.</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-5">
+    <!-- Stat Cards -->
+    <div class="col-md-4">
+        <div class="card p-4 text-center">
+            <h3 class="display-6 fw-bold text-gradient mb-2">{{ "{:,}".format(stats.consensus_count) if stats.consensus_count else stats.consensus_count }}</h3>
+            <span class="text-uppercase tracking-wider text-muted fs-7">Curated Peptides</span>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-4 text-center">
+            <h3 class="display-6 fw-bold text-gradient mb-2">{{ "{:,}".format(stats.activities_count) if stats.activities_count else stats.activities_count }}</h3>
+            <span class="text-uppercase tracking-wider text-muted fs-7">Bioactivity Records</span>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-4 text-center">
+            <h3 class="display-6 fw-bold text-gradient mb-2">{{ "{:,}".format(stats.papers_count) if stats.papers_count else stats.papers_count }}</h3>
+            <span class="text-uppercase tracking-wider text-muted fs-7">Literature &amp; Patents</span>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-5">
+    <!-- Search Box Card -->
+    <div class="col-md-12">
+        <div class="card p-4">
+            <h2 class="h4 fw-bold mb-3">Database Search</h2>
+            <form action="/" method="GET" id="search-form">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-7" id="search-input-container">
+                        {% if search_type in ('blast', 'hmmer', 'embedding') %}
+                        <textarea name="q" class="form-control" rows="3" placeholder="Paste FASTA sequence(s) here..." style="font-family: monospace;">{{ query }}</textarea>
+                        {% else %}
+                        <input type="text" name="q" class="form-control form-control-lg" placeholder="Enter sequence, SMILES, name, or database ID..." value="{{ query }}">
+                        {% endif %}
+                    </div>
+                    <div class="col-md-3">
+                        <select name="type" class="form-select form-select-lg">
+                            <option value="text" {% if search_type == 'text' %}selected{% endif %}>Keyword + filters</option>
+                            <option value="fulltext" {% if search_type == 'fulltext' %}selected{% endif %}>Full-text (wildcards, AND/OR/NOT)</option>
+                            <option value="regex" {% if search_type == 'regex' %}selected{% endif %}>Sequence motif (regex)</option>
+                            <option value="similar" {% if search_type == 'similar' %}selected{% endif %}>Near-identical peptides (PepMatch)</option>
+                            <option value="blast" {% if search_type == 'blast' %}selected{% endif %}>BLAST similarity alignment</option>
+                            <option value="hmmer" {% if search_type == 'hmmer' %}selected{% endif %}>Family match (HMMER profile scan)</option>
+                            <option value="embedding" {% if search_type == 'embedding' %}selected{% endif %}>Embedding match (ESM-2 nearest neighbors)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                         <button type="submit" class="btn btn-gradient btn-lg w-100" id="search-submit-btn">Search</button>
+                    </div>
+                </div>
+                
+                <!-- Biological Activity Filters -->
+                <div class="row g-3 mt-2">
+                    <div class="col-md-2 col-sm-6">
+                        <label class="form-label small text-muted mb-1">Activity Group</label>
+                        <select name="activity_group" class="form-select form-select-sm">
+                            <option value="">-- All --</option>
+                            <option value="antimicrobial" {% if activity_group == 'antimicrobial' %}selected{% endif %}>Antimicrobial (broad)</option>
+                            <option value="antibacterial" {% if activity_group == 'antibacterial' %}selected{% endif %}>Antibacterial</option>
+                            <option value="antifungal" {% if activity_group == 'antifungal' %}selected{% endif %}>Antifungal</option>
+                            <option value="antiviral" {% if activity_group == 'antiviral' %}selected{% endif %}>Antiviral</option>
+                            <option value="antiparasitic" {% if activity_group == 'antiparasitic' %}selected{% endif %}>Antiparasitic</option>
+                            <option value="anticancer" {% if activity_group == 'anticancer' %}selected{% endif %}>Anticancer</option>
+                            <option value="antibiofilm" {% if activity_group == 'antibiofilm' %}selected{% endif %}>Antibiofilm</option>
+                            <option value="anti-inflammatory" {% if activity_group in ('anti-inflammatory', 'antinflammatory') %}selected{% endif %}>Anti-inflammatory</option>
+                            <option value="other" {% if activity_group == 'other' %}selected{% endif %}>Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small text-muted mb-1">Target Organism</label>
+                        <input type="text" name="target" class="form-control form-control-sm" placeholder="e.g. E. coli, S. aureus" value="{{ target }}">
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small text-muted mb-1">Mechanism of Action</label>
+                        <input type="text" name="mechanism" class="form-control form-control-sm" placeholder="e.g. Pore formation" value="{{ mechanism }}">
+                    </div>
+                    <div class="col-md-2 col-sm-6">
+                        <label class="form-label small text-muted mb-1">Metric</label>
+                        <select name="metric" class="form-select form-select-sm">
+                            <option value="">-- All --</option>
+                            <option value="MIC" {% if metric == 'MIC' %}selected{% endif %}>MIC</option>
+                            <option value="MBC" {% if metric == 'MBC' %}selected{% endif %}>MBC (Bactericidal)</option>
+                            <option value="IC50" {% if metric == 'IC50' %}selected{% endif %}>IC50</option>
+                            <option value="EC50" {% if metric == 'EC50' %}selected{% endif %}>EC50</option>
+                            <option value="Hemolysis" {% if metric == 'Hemolysis' %}selected{% endif %}>Hemolysis</option>
+                            <option value="Growth Inhibition" {% if metric == 'Growth Inhibition' %}selected{% endif %}>Growth Inhibition</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 col-sm-6">
+                        <label class="form-label small text-muted mb-1">Unit</label>
+                        <select name="unit" class="form-select form-select-sm">
+                            <option value="">-- All --</option>
+                            <option value="μM" {% if unit in ('μM', 'µM', 'uM') %}selected{% endif %}>µM / uM</option>
+                            <option value="ug/mL" {% if unit in ('ug/mL', 'µg/ml', 'ug/ml') %}selected{% endif %}>µg/mL / ug/mL</option>
+                            <option value="mg/mL" {% if unit == 'mg/mL' %}selected{% endif %}>mg/mL</option>
+                            <option value="nM" {% if unit == 'nM' %}selected{% endif %}>nM</option>
+                            <option value="%" {% if unit in ('%', 'percentage') %}selected{% endif %}>% (Inhibition)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div class="d-none mt-3" id="loading-spinner">
+                    <div class="d-flex align-items-center justify-content-center gap-2 text-primary">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span id="loading-text">Processing search query. Please wait...</span>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% if query or activity_group or target or mechanism or metric or unit %}
+<div class="row g-4">
+    <div class="col-md-12">
+        <div class="card p-4">
+            <h2 class="h4 fw-bold mb-4">Search Results (Found: {{ results|length }} records)</h2>
+
+            {% if search_error %}
+            {# Regex errors carry the position of the fault, which is the useful part. #}
+            <div class="alert alert-warning" role="alert">
+                <strong>Could not run that search.</strong> {{ search_error }}
+            </div>
+            {% endif %}
+
+            {% if search_type == 'similar' %}
+            <!-- PepMatch: an exact mismatch count, not an alignment score -->
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Entry ID</th>
+                            <th>Matched Sequence</th>
+                            <th>Mismatches</th>
+                            <th>Identity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for hit in results %}
+                        <tr>
+                            <td><a href="/search/peptide/{{ hit['entry_id'] }}" class="fw-bold text-decoration-none">{{ hit['entry_id'] }}</a></td>
+                            <td class="font-monospace small">{{ hit['matched_sequence'] }}</td>
+                            <td><span class="badge bg-secondary p-2">{{ hit['mismatches'] }}</span></td>
+                            <td class="fw-bold">{{ hit['identity'] }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% elif search_type == 'hmmer' %}
+            <!-- HMMER family-profile scan: a family match, not a peptide match, so links go to
+                 the family's member listing rather than a single peptide entry. -->
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Family</th>
+                            <th>E-Value</th>
+                            <th>Score</th>
+                            <th>Bias</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for hit in results %}
+                        <tr>
+                            <td><span class="badge bg-secondary">{{ hit.family_id }}</span></td>
+                            <td class="font-monospace text-warning">{{ hit.evalue }}</td>
+                            <td class="fw-bold">{{ hit.score }}</td>
+                            <td>{{ hit.bias }}</td>
+                            <td>
+                                <a href="/search?family={{ hit.family_id }}" class="btn btn-sm btn-outline-primary">View Family</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not results %}
+                        <tr><td colspan="5" class="text-center py-4 text-muted">No family profile scored this sequence above threshold.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            {% elif search_type == 'embedding' %}
+            <!-- ESM-2 embedding nearest neighbors: a representation-space match, so no
+                 alignment statistics -- only how close the query and hit sit in that space. -->
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Entry ID</th>
+                            <th>Similarity</th>
+                            <th>Distance</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for hit in results %}
+                        <tr>
+                            <td><span class="badge bg-secondary">{{ hit.entry_id }}</span></td>
+                            <td class="fw-bold text-success">{{ "%.4f"|format(hit.similarity) }}</td>
+                            <td class="font-monospace text-warning">{{ "%.4f"|format(hit.distance) }}</td>
+                            <td>
+                                <a href="/search/peptide/{{ hit.entry_id }}" class="btn btn-sm btn-outline-primary">View Details</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not results %}
+                        <tr><td colspan="4" class="text-center py-4 text-muted">No embedding neighbors found.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            {% elif search_type == 'blast' %}
+            <!-- BLAST result view -->
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Sequence ID</th>
+                            <th>Identity %</th>
+                            <th>Alignment Len</th>
+                            <th>Gaps</th>
+                            <th>E-Value</th>
+                            <th>Bitscore</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for hit in results %}
+                        <tr>
+                            <td><span class="badge bg-secondary">{{ hit.subject_id }}</span></td>
+                            <td class="fw-bold text-success">{{ hit.identity }}%</td>
+                            <td>{{ hit.align_len }} aa</td>
+                            <td>{{ hit.gaps }}</td>
+                            <td class="font-monospace text-warning">{{ hit.evalue }}</td>
+                            <td>{{ hit.bitscore }}</td>
+                            <td>
+                                <a href="/search/peptide/{{ hit.subject_id }}" class="btn btn-sm btn-outline-primary">View Details</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <!-- Text result view -->
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Entry ID</th>
+                            <th>Sequence</th>
+                            <th>Sources</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in results %}
+                        <tr>
+                            <td><strong class="text-gradient">{{ row.entry_id }}</strong></td>
+                            <td class="font-monospace" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ row.sequence }}</td>
+                            <td>
+                                {% if row.ADP %}<span class="badge bg-primary">ADP</span>{% endif %}
+                                {% if row.CAMP %}<span class="badge bg-secondary">CAMP</span>{% endif %}
+                                {% if row.DBAMP %}<span class="badge bg-success">dbAMP</span>{% endif %}
+                                {% if row.DRAMP %}<span class="badge bg-danger">DRAMP</span>{% endif %}
+                                {% if row.DBAASP %}<span class="badge bg-info">DBAASP</span>{% endif %}
+                            </td>
+                            <td>
+                                <a href="/search/peptide/{{ row.entry_id }}" class="btn btn-sm btn-outline-primary">View Details</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+            
+            {% if not results %}
+            <div class="text-center py-5 text-muted">
+                <p class="mb-0">No matching peptide entries found.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Dynamic input swap and spinner script -->
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const select = document.querySelector('select[name="type"]');
+        const container = document.getElementById('search-input-container');
+        const form = document.getElementById('search-form');
+        const spinner = document.getElementById('loading-spinner');
+        const submitBtn = document.getElementById('search-submit-btn');
+        const loadingText = document.getElementById('loading-text');
+        
+        select.addEventListener('change', () => {
+            const val = select.value;
+            const currentElement = container.querySelector('[name="q"]');
+            const currentVal = currentElement ? currentElement.value : '';
+            
+            if (['blast', 'hmmer', 'embedding'].includes(val)) {
+                let placeholder = "Paste FASTA sequence(s) here...";
+                if (val === 'hmmer') placeholder = "Paste sequence for HMMER family profile scan...";
+                if (val === 'embedding') placeholder = "Paste sequence for ESM-2 embedding similarity search...";
+                container.innerHTML = `
+                    <textarea name="q" class="form-control font-monospace" rows="3" placeholder="${placeholder}">${currentVal}</textarea>
+                `;
+            } else {
+                container.innerHTML = `
+                    <input type="text" name="q" class="form-control form-control-lg" placeholder="Enter sequence, SMILES, name, or database ID..." value="${currentVal}">
+                `;
+            }
+        });
+        
+        form.addEventListener('submit', (e) => {
+            const val = select.value;
+            if (['blast', 'hmmer', 'embedding'].includes(val)) {
+                let msg = 'Aligning query sequences against BLAST database. Please wait...';
+                if (val === 'hmmer') msg = 'Scanning query against HMMER family profiles. Please wait...';
+                if (val === 'embedding') msg = 'Searching ESM-2 representation space for nearest neighbors. Please wait...';
+                if (loadingText) loadingText.textContent = msg;
+                spinner.classList.remove('d-none');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = `
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Searching...
+                `;
+            }
+        });
+    });
+</script>
+{% endblock %}

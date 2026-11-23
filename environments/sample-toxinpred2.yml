@@ -1,0 +1,40 @@
+# ToxinPred 2.0 for the benchmark-only "hemolytic" reference comparator
+# (sample/benchmark.py's ToxinPred2Predictor -- see _benchmark_only_predictors).
+#
+# WHY ITS OWN ENVIRONMENT. Same Raghava-lab shape as anticp2/algpred2/amplify/toxinpred3: each of
+# those tools gets a dedicated environment rather than sharing sample-predictors, because their
+# pins (or Python version ceilings) conflict with each other. ToxinPred2 turns out NOT to need
+# scikit-learn at all -- unlike hemopi2/algpred2/toxinpred3, its shipped model is an ONNX export
+# (`onnxruntime.InferenceSession`, see toxinpred2/model/RF_model.onnx.zip), so there is no pickle
+# version to pin against the rest of the pipeline. It is isolated anyway, matching every other
+# per-tool predictor environment added since macrel (see environments/README.md's "Adding a
+# predictor" section) rather than reviving the original sample-predictors sharing pattern that
+# predates that convention.
+#
+# INSTALL METHOD, confirmed 2026-09-04: `pip install toxinpred2` (PyPI v1.1, real package, unlike
+# anticp2's git URL). PyPI declares `Requires-Python >=3.6` with no upper bound -- no PEP-440
+# strict-<= trap like anticp2's `<=3.7`. Its own metadata lists numpy, pandas, argparse, joblib and
+# onnxruntime as dependencies -- no scikit-learn.
+#
+# HYBRID MODEL (-m 2: RF + BLAST + MERCI, the tool's best-performing configuration) needs `perl`
+# on PATH for its bundled MERCI_motif_locator.pl (invoked via `os.system("perl -pi -e ...")` and
+# `os.system(merci + " -p ...")` inside toxinpred2.py itself) -- added explicitly rather than
+# assumed present, since nothing about a fresh conda env guarantees perl is on its PATH. BLAST
+# itself needs no separate install: the package bundles its own blastp binary
+# (toxinpred2/blast_binaries/linux/blastp) and its own reference database
+# (toxinpred2/Database/data.{phr,pin,psq}), located relative to the installed package's own path,
+# so no network fetch happens at call time.
+#
+#   make env-toxinpred2     # or: conda env create -f environments/sample-toxinpred2.yml
+name: sample-toxinpred2
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - perl
+  - numpy
+  - pandas
+  - pip:
+      - toxinpred2==1.1

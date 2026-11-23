@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+            <h1 class="display-6 fw-bold mb-1"><span class="text-gradient">Administration</span></h1>
+            <p class="text-muted mb-0">Signed in as <code>{{ username }}</code>.</p>
+        </div>
+        <form method="post" action="/admin/logout">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Sign out</button>
+        </form>
+    </div>
+</div>
+
+{% if message %}<div class="alert alert-success" role="status">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card p-4 h-100">
+            <h2 class="h5 fw-bold mb-3">Your password</h2>
+            <p class="text-muted small">Changing it signs out every other session using this
+            account, including one an attacker may hold — which is the usual reason to change it.</p>
+            <form method="post" action="/admin/password">
+                <div class="mb-3">
+                    <label for="current_password" class="form-label small text-muted text-uppercase fw-bold">Current password</label>
+                    <input class="form-control" id="current_password" name="current_password"
+                           type="password" autocomplete="current-password" required>
+                </div>
+                <div class="mb-3">
+                    <label for="new_password" class="form-label small text-muted text-uppercase fw-bold">New password</label>
+                    <input class="form-control" id="new_password" name="new_password" type="password"
+                           autocomplete="new-password" minlength="{{ min_password_length }}" required>
+                    <div class="form-text">At least {{ min_password_length }} characters. A long
+                    passphrase beats a short complicated one.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="confirm_password" class="form-label small text-muted text-uppercase fw-bold">Repeat new password</label>
+                    <input class="form-control" id="confirm_password" name="confirm_password"
+                           type="password" autocomplete="new-password" required>
+                </div>
+                <button type="submit" class="btn btn-gradient">Change password</button>
+            </form>
+            <hr class="my-4">
+            <p class="text-muted small mb-0">Locked out? The same job runs from the shell:
+            <code>sample-cli admin passwd &lt;username&gt;</code></p>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card p-4 h-100">
+            <h2 class="h5 fw-bold mb-3">Administrators</h2>
+            <div class="table-responsive mb-3">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr><th>Username</th><th>Status</th><th>Created</th><th class="text-end">Actions</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for a in admins %}
+                        <tr>
+                            <td><code>{{ a.username }}</code>{% if a.username == username %}
+                                <span class="badge bg-secondary ms-1">you</span>{% endif %}</td>
+                            <td>{% if a.is_active %}<span class="badge bg-success">active</span>
+                                {% else %}<span class="badge bg-warning text-dark">suspended</span>{% endif %}</td>
+                            <td class="small text-muted">{{ a.created_at }}</td>
+                            <td class="text-end">
+                                {% if a.username != username %}
+                                <form method="post" action="/admin/admins/toggle" class="d-inline">
+                                    <input type="hidden" name="target" value="{{ a.username }}">
+                                    <input type="hidden" name="active" value="{{ '0' if a.is_active else '1' }}">
+                                    <button class="btn btn-outline-secondary btn-sm">
+                                        {{ 'Suspend' if a.is_active else 'Enable' }}</button>
+                                </form>
+                                <form method="post" action="/admin/admins/delete" class="d-inline"
+                                      onsubmit="return confirm('Delete {{ a.username }}? This cannot be undone.');">
+                                    <input type="hidden" name="target" value="{{ a.username }}">
+                                    <button class="btn btn-outline-danger btn-sm">Delete</button>
+                                </form>
+                                {% else %}
+                                <span class="text-muted small">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <h3 class="h6 fw-bold">Add an administrator</h3>
+            <form method="post" action="/admin/admins/create" class="row g-2 align-items-end">
+                <div class="col-sm-5">
+                    <label for="new_username" class="form-label small text-muted text-uppercase fw-bold">Username</label>
+                    <input class="form-control" id="new_username" name="new_username" required>
+                </div>
+                <div class="col-sm-5">
+                    <label for="new_user_password" class="form-label small text-muted text-uppercase fw-bold">Password</label>
+                    <input class="form-control" id="new_user_password" name="new_user_password"
+                           type="password" autocomplete="new-password"
+                           minlength="{{ min_password_length }}" required>
+                </div>
+                <div class="col-sm-2">
+                    <button type="submit" class="btn btn-gradient w-100">Add</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="card p-4 mt-4">
+    <h2 class="h5 fw-bold mb-3">Edit a record</h2>
+    <div class="alert alert-info small" role="note">
+        <strong>These edits are durable.</strong> Peptides, activities, names, families and the
+        bibliography are rebuilt from the CSVs by pipeline step 44, but a correction made here
+        is reapplied automatically after every rebuild until the source data agrees with it.
+    </div>
+
+    <form method="get" action="/admin/entry" class="row g-2 align-items-end mb-3">
+        <div class="col-sm-6 col-md-4">
+            <label for="entry_id" class="form-label small text-muted text-uppercase fw-bold">Entry id</label>
+            <input class="form-control font-monospace" id="entry_id" name="entry_id"
+                   placeholder="SAMPLE0000000001" value="{{ record.entry_id if record else '' }}" required>
+        </div>
+        <div class="col-sm-3 col-md-2">
+            <button type="submit" class="btn btn-outline-secondary w-100">Load</button>
+        </div>
+    </form>
+
+    {% if record %}
+    <form method="post" action="/admin/entry">
+        <input type="hidden" name="entry_id" value="{{ record.entry_id }}">
+        <div class="row g-3">
+            {% for field in editable_fields %}
+            <div class="col-md-6">
+                <label for="f_{{ field }}" class="form-label small text-muted text-uppercase fw-bold">
+                    {{ field.replace('_', ' ') }}</label>
+                {% if field == 'sequence' %}
+                <textarea class="form-control font-monospace" id="f_{{ field }}" name="{{ field }}"
+                          rows="3">{{ record[field] or '' }}</textarea>
+                {% else %}
+                <input class="form-control" id="f_{{ field }}" name="{{ field }}"
+                       value="{{ record[field] or '' }}">
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <div class="d-flex align-items-center gap-3 mt-3">
+            <button type="submit" class="btn btn-gradient">Save changes</button>
+            {% if record.is_decoy %}
+            <span class="badge bg-danger">decoy — never served publicly</span>
+            {% endif %}
+        </div>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

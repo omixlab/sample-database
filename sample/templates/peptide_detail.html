@@ -1,0 +1,1059 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <a href="/" class="btn btn-outline-secondary btn-sm" style="width: fit-content;">&larr; Back to Search</a>
+        <div class="d-flex gap-2">
+            <a href="/search/peptide/{{ peptide.entry_id }}/json" target="_blank" class="btn btn-outline-primary btn-sm">Export JSON</a>
+        </div>
+    </div>
+    
+    <h1 class="display-6 fw-bold mb-3"><span class="text-gradient">Peptide Entry Details: {{ peptide.entry_id }}</span></h1>
+
+    {% if peptide.descriptors.is_anomaly %}
+    {# Step 43's Isolation Forest verdict, surfaced as a caveat rather than a defect: an anomaly is
+       still a real, released peptide, just compositionally unusual relative to the rest of the
+       dataset -- never dropped, only flagged. #}
+    <div class="mb-3">
+        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning p-2"
+              title="Flagged by an unsupervised Isolation Forest fit on physicochemical descriptors, amino-acid composition and ESM-2 embeddings across the whole release{% if peptide.descriptors.anomaly_score is not none %} (anomaly score: {{ '%.3f'|format(peptide.descriptors.anomaly_score) }}){% endif %}.">
+            Potential outlier based on Isolation Forest analysis
+        </span>
+    </div>
+    {% endif %}
+
+    {% if peptide.names %}
+    {# Harvested from all six source databases. The same peptide is `Dermaseptin-B2`, `DRS-B2` and
+       `ADENOREGULIN` depending on which paper you read, so every spelling is listed -- the release
+       previously stored no name at all and "magainin" matched nothing. #}
+    <div class="mb-3">
+        {% for n in peptide.names %}
+        <span class="badge {{ 'bg-primary' if loop.first else 'bg-secondary-subtle text-secondary-emphasis' }} p-2 me-1 mb-1">{{ n.name }}</span>
+        {% endfor %}
+        {% if wiki_name %}
+        {# Wikipedia has no stable identifier for a peptide, so this is a search rather than a
+           deep link: guessing an article title would produce confident links to the wrong page,
+           or to nothing. #}
+        <a href="https://en.wikipedia.org/w/index.php?search={{ wiki_name | urlencode }}"
+           target="_blank" rel="noopener noreferrer"
+           class="badge bg-secondary-subtle text-secondary-emphasis border p-2 me-1 mb-1 text-decoration-none"
+           title="Search Wikipedia for {{ wiki_name }}">Wikipedia ↗</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if peptide.source_organism %}
+    {# Omitted entirely when unrecorded rather than printed as "Unknown", which would read as
+       though somebody had checked. `Synthetic` is a real answer: a designed sequence has no
+       source organism. #}
+    <div class="mb-3">
+        <span class="text-muted small text-uppercase fw-bold me-2">Source</span>
+        {% if peptide.source_organism == 'Synthetic' %}
+        <span class="badge bg-secondary p-2" title="Designed rather than isolated from an organism">Synthetic</span>
+        {% else %}
+        <span class="badge bg-success-subtle text-success-emphasis border border-success p-2 fst-italic">{{ peptide.source_organism }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if peptide.modifications %}
+    {# The sequence does not describe the whole molecule. C-terminal amidation alone applies to
+       44 % of DBAASP's peptides and removes a negative charge, so the net charge below is
+       computed from the bare sequence and is not the modified molecule's -- both are shown
+       rather than one silently corrected. #}
+    <div class="mb-3">
+        <span class="text-muted small text-uppercase fw-bold me-2">Chemical modifications</span>
+        {% for m in peptide.modifications %}
+        <span class="badge {{ 'bg-danger-subtle text-danger-emphasis border border-danger' if m.kind in ('amidation', 'acylation') else 'bg-info-subtle text-info-emphasis border border-info' }} p-2 me-1 mb-1"
+              title="{{ m.description or m.code }}{% if m.source_db %} — {{ m.source_db }}{% endif %}">
+            {%- if m.terminus %}{{ m.terminus }}-terminal {{ m.code }}
+            {%- else %}{{ m.code }} at {{ m.position }}{% endif -%}
+        </span>
+        {% endfor %}
+        {% if charge_correction %}
+        <div class="form-text mt-1">
+            Net charge below is computed from the sequence. Accounting for these modifications
+            shifts it by <strong>{{ "%+g"|format(charge_correction) }}</strong>.
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if peptide.topology and (peptide.topology.is_cyclic or peptide.topology.n_disulfides) %}
+    {# Chemical modifications to the backbone. Terminal modifications -- amidation, acetylation,
+       fatty-acid conjugation -- are recorded by DBAASP for 57.7 % of its entries but are not yet
+       harvested; see TODO A4. What is stored today is the cyclisation and the disulfide count. #}
+    <div class="mb-3">
+        <span class="text-muted small text-uppercase fw-bold me-2">Modifications</span>
+        {% if peptide.topology.is_cyclic %}
+        <span class="badge bg-info-subtle text-info-emphasis border border-info p-2 me-1"
+              title="{{ peptide.topology.kind }}">
+            {% if peptide.topology.kind == 'head_to_tail' %}Head-to-tail cyclic{% else %}Cyclic{% endif %}</span>
+        {% endif %}
+        {% if peptide.topology.n_disulfides %}
+        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning p-2 me-1"
+              title="Each disulfide removes two hydrogens from the linear-chain mass">
+            {{ peptide.topology.n_disulfides }} disulfide{{ '' if peptide.topology.n_disulfides == 1 else 's' }}</span>
+        {% endif %}
+        {% if peptide.topology.mass_correction %}
+        <span class="badge bg-secondary-subtle text-secondary-emphasis p-2 me-1"
+              title="How much a linear-chain calculation overstates the mass">
+            mass −{{ "%.4f"|format(peptide.topology.mass_correction) }} Da</span>
+        {% endif %}
+        {% if peptide.topology.source_db %}
+        <span class="text-muted small">from {{ peptide.topology.source_db }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="row g-4 mt-2">
+        <!-- Sequence and properties -->
+        <div class="col-md-7">
+            <h3 class="h5 fw-bold mb-3">Sequence Information</h3>
+            <div class="bg-body-tertiary p-3 rounded font-monospace text-wrap mb-4" style="font-size: 1.25rem;">
+                {{ peptide.sequence }}
+            </div>
+            
+            <h3 class="h5 fw-bold mb-3">SMILES Representation</h3>
+            <div class="bg-body-tertiary p-3 rounded font-monospace text-wrap text-muted mb-4">
+                {{ peptide.SMILES or 'N/A' }}
+            </div>
+            
+            {# Entries that are only an internal filename are dropped rather than shown. Until the
+               dataset is rebuilt, `Reference` holds "File: <uuid>.json" for every row -- the name
+               of the extraction file, presented as though it were a citation. The merge now
+               resolves each extraction to its paper, so real entries carry a title and a DOI; the
+               filter keeps the page honest against a dataset built before that. Measurement-level
+               citations are in the activities table, and the full bibliography is below. #}
+            {% if real_refs %}
+            <h3 class="h5 fw-bold mb-3">Literature &amp; Patent References</h3>
+            <div class="bg-body-tertiary p-3 rounded text-wrap mb-4" style="font-size: 0.95rem;">
+                <ul class="mb-0 ps-3 text-muted">
+                    {% for ref in real_refs %}
+                        <li>{{ ref }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            
+            {% if peptide.Biological_Activity %}
+            <h3 class="h5 fw-bold mb-3">Raw Biological Activity Sources</h3>
+            <div class="bg-body-tertiary p-3 rounded text-wrap mb-4" style="font-size: 0.95rem;">
+                <ul class="mb-0 ps-3 text-muted">
+                    {% for act in peptide.Biological_Activity.split(' | ') %}
+                        <li>{{ act }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            
+            {% if family %}
+            <h3 class="h5 fw-bold mb-3">Family</h3>
+            <div class="mb-4">
+                {# Pfam assignments are curated and carry an external identity; clusters are
+                   derived in this project and deliberately do not link out, because a SAMPLE
+                   cluster id would resolve to an unrelated Pfam entry. #}
+                {% if family.url %}
+                <a href="{{ family.url }}" target="_blank" rel="noopener noreferrer"
+                   class="badge bg-info p-2 text-decoration-none">
+                    {{ family.family_name or family.family_id }} ({{ family.family_id }})
+                </a>
+                <span class="badge bg-success-subtle text-success-emphasis p-2">Pfam curated</span>
+                {% else %}
+                <span class="badge bg-secondary p-2">{{ family.family_id }}</span>
+                <span class="badge bg-warning-subtle text-warning-emphasis p-2"
+                      title="Grouped by near-identity in this project, not a curated family">
+                    clustered here
+                </span>
+                {% endif %}
+                <a href="/search?family={{ family.family_id }}"
+                   class="badge bg-secondary-subtle text-secondary-emphasis border p-2 text-decoration-none">
+                    {{ family.n_members }} member{{ '' if family.n_members == 1 else 's' }}
+                </a>
+            </div>
+            {% endif %}
+
+            {% if identity_links %}
+            <h3 class="h5 fw-bold mb-3">Sequence &amp; Structure Identifiers</h3>
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                {# UniProt/PDB accessions resolved from the activity table's cross_references
+                   column (sample.identifiers). Kept separate from Assay Archives below: these
+                   identify the molecule itself, while PubChem/ChEMBL identify a screening
+                   record for it, sourced independently through step 37. #}
+                {% for link in identity_links %}
+                <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer"
+                   class="badge bg-info-subtle text-info-emphasis border border-info text-decoration-none">
+                    {{ link.label }}: {{ link.source_id }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if go_terms %}
+            <h3 class="h5 fw-bold mb-3">Gene Ontology</h3>
+            {# Harvested from CAMP's own scraped UniProt-derived GO annotation
+               (sample/gene_ontology.py) -- the only source implemented so far; QuickGO via
+               Pfam/InterPro is future work. Grouped by category and capped, since some peptides
+               carry well over a hundred terms. #}
+            {% for group in go_terms %}
+            <div class="mb-3">
+                <span class="text-muted small text-uppercase fw-bold">{{ group.label }}</span>
+                <div class="d-flex flex-wrap gap-2 mt-1">
+                    {% for t in group.terms %}
+                    <a href="https://amigo.geneontology.org/amigo/term/{{ t.go_id }}"
+                       target="_blank" rel="noopener noreferrer"
+                       class="badge bg-secondary-subtle text-secondary-emphasis border text-decoration-none"
+                       title="{{ t.go_id }}{% if t.evidence %} — evidence: {{ t.evidence }}{% endif %}">
+                        {{ t.term }}</a>
+                    {% endfor %}
+                    {% if group.total > group.shown %}
+                    <span class="badge bg-light text-muted border" title="{{ group.total }} total terms in this category">
+                        +{{ group.total - group.shown }} more</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {% if bioactivity %}
+            <h3 class="h5 fw-bold mb-3">Assay Archives</h3>
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                {% for hit in bioactivity %}
+                <a href="{{ hit.url }}" target="_blank" rel="noopener noreferrer"
+                   class="badge bg-primary p-2 text-decoration-none">
+                    {{ hit.archive|upper }}: {{ hit.identifier }}
+                    {% if hit.n_records %}<span class="badge bg-secondary-subtle text-secondary-emphasis border ms-1">{{ hit.n_records }}</span>{% endif %}
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <h3 class="h5 fw-bold mb-4">External References</h3>
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                {# Resolved by sample/external_links.py. An entry with no url could not be
+                   resolved and renders as inert text rather than a broken link. Patterns marked
+                   unverified follow the resource's documented scheme but were not confirmed
+                   against the live resource, so they are flagged rather than presented as
+                   certain.
+
+                   `ref.form` is set for resources that retired their entry URLs and can only be
+                   reached by submitting a search form -- APD6 is the one such case. A form
+                   styled as a badge keeps it visually identical to the other links. #}
+                {% for ref in peptide.papers %}
+                    {% if ref.form %}
+                    <form action="{{ ref.form.action }}" method="post" target="_blank"
+                          class="d-inline m-0">
+                        {% for name, value in ref.form.fields.items() %}
+                        <input type="hidden" name="{{ name }}" value="{{ value }}">
+                        {% endfor %}
+                        <button type="submit"
+                                class="badge bg-primary p-2 border-0"
+                                title="Opens {{ ref.label }} via its search form">
+                            {{ ref.label }}: {{ ref.source_id }}
+                        </button>
+                    </form>
+                    {% elif ref.url %}
+                    <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer"
+                       class="badge {{ 'bg-primary' if ref.verified else 'bg-secondary' }} p-2 text-decoration-none"
+                       {% if not ref.verified %}title="Link pattern not verified"{% endif %}>
+                        {{ ref.label }}: {{ ref.source_id }}{% if not ref.verified %} &#9432;{% endif %}
+                    </a>
+                    {% else %}
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis border p-2">{{ ref.label }}: {{ ref.source_id }}</span>
+                    {% endif %}
+                {% else %}
+                    <span class="text-muted small">No external references recorded.</span>
+                {% endfor %}
+            </div>
+
+            {% if source_documents %}
+            <h3 class="h5 fw-bold mb-4">Source Documents</h3>
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                {% for doc in source_documents %}
+                    <a href="{{ doc.url }}" target="_blank" rel="noopener noreferrer"
+                       class="badge {{ 'bg-info-subtle text-info-emphasis border border-info-subtle' if doc.kind == 'patent' else 'bg-primary-subtle text-primary-emphasis border border-primary-subtle' }} p-2 text-decoration-none d-inline-flex align-items-center gap-1 shadow-sm"
+                       title="{{ doc.title or (doc.source ~ '/' ~ doc.file_name) }}">
+                        <span>{{ doc.label }}</span>
+                        <span style="font-size: 0.85em; opacity: 0.75;" aria-hidden="true">&#8599;</span>
+                    </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+
+            <!-- 2D: sequence annotated by secondary-structure propensity -->
+            <div class="card bg-body-tertiary border-0 p-4 mb-4">
+                <h3 class="h5 fw-bold mb-2">Sequence &amp; Secondary Structure</h3>
+                {% if secondary_structure %}
+                <p class="text-muted small mb-3">
+                    Chou-Fasman propensity from sequence composition, not a solved or predicted
+                    structure -- see the 3D panel for that where a fold exists.
+                    <span class="fw-bold" style="color:#e05252;">{{ "%.0f"|format(secondary_structure.summary.helix * 100) }}% helix</span> ·
+                    <span class="fw-bold" style="color:#e0b022;">{{ "%.0f"|format(secondary_structure.summary.sheet * 100) }}% sheet</span> ·
+                    <span class="fw-bold text-muted">{{ "%.0f"|format(secondary_structure.summary.coil * 100) }}% coil</span>
+                </p>
+                <div class="d-flex flex-wrap" style="gap: 2px; line-height: 1;">
+                    {% for letter, state in secondary_structure.residues %}
+                    <span class="d-inline-flex align-items-center justify-content-center font-monospace fw-bold"
+                          style="width: 1.6em; height: 1.6em; font-size: 0.85rem; border-radius: 3px;
+                                 {% if state == 'H' %}background:#e0525233;color:#e05252;border:1px solid #e0525266;
+                                 {% elif state == 'E' %}background:#e0b02233;color:#e0b022;border:1px solid #e0b02266;
+                                 {% else %}background:transparent;color:var(--bs-secondary-color);border:1px solid var(--bs-border-color);
+                                 {% endif %}"
+                          title="{{ letter }}{{ loop.index }}: {% if state == 'H' %}helix{% elif state == 'E' %}sheet{% else %}coil{% endif %}">{{ letter }}</span>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No sequence available.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Descriptors and 3D Viewer -->
+        <div class="col-md-5">
+            <div class="card bg-body-tertiary border-0 p-4 mb-4">
+                <h3 class="h5 fw-bold mb-3">Enriched Descriptors</h3>
+                
+                {% if peptide.molecular_weight %}
+                <table class="table table-borderless table-sm mb-0">
+                    <tr>
+                        <td class="text-muted">Molecular Weight:</td>
+                        <td class="fw-bold text-end">{{ "%.2f"|format(peptide.molecular_weight) }} g/mol</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">LogP (hydrophobicity):</td>
+                        <td class="fw-bold text-end">{{ "%.2f"|format(peptide.logp|float) if peptide.logp is not none and peptide.logp != "" else "—" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Net Charge (pH 7):</td>
+                        <td class="fw-bold text-end">{{ peptide.charge }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Sequence Length:</td>
+                        <td class="fw-bold text-end">{{ peptide.sequence_length }} residues</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Hydrogen Bond Donors:</td>
+                        <td class="fw-bold text-end">{{ peptide.hydrogen_bond_donors if peptide.hydrogen_bond_donors is not none and peptide.hydrogen_bond_donors != "" else "—" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Hydrogen Bond Acceptors:</td>
+                        <td class="fw-bold text-end">{{ peptide.hydrogen_bond_acceptors if peptide.hydrogen_bond_acceptors is not none and peptide.hydrogen_bond_acceptors != "" else "—" }}</td>
+                    </tr>
+                </table>
+                {% else %}
+                <p class="text-muted mb-0 small">No computed descriptors available. Run property enrichment pipeline step to generate descriptors.</p>
+                {% endif %}
+            </div>
+
+            <!-- 3D Molecule Viewer -->
+            <div class="card bg-body-tertiary border-0 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="h5 fw-bold mb-0">3D Conformation Model</h3>
+                    <div class="d-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="viewer-reset-btn" title="Reset camera view">↺ Reset View</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="viewer-fullscreen-btn" title="Toggle fullscreen">⛶ Fullscreen</button>
+                    </div>
+                </div>
+                <div id="molecule-3d-container" class="rounded overflow-hidden border border-secondary-subtle" style="height: 380px; width: 100%; position: relative;">
+                    {# Deliberately NOT class="viewer_3Dmoljs": that is 3Dmol's auto-load hook, and
+                       the bundle fires it from `document.onreadystatechange` at readyState
+                       "complete" -- after the DOMContentLoaded handler below has already built a
+                       viewer and drawn the molecule. Autoload then appended a SECOND, data-less
+                       canvas over the first (same absolute position, same z-index, later in DOM
+                       order) and the panel rendered as a flat empty box. `data-backgroundcolor`
+                       and `data-style` feed only that autoload path; the script sets both itself. #}
+                    <div id="viewer3d" style="width: 100%; height: 100%;"></div>
+                </div>
+                <div class="text-center mt-2">
+                    <span class="text-muted small">Rotate: left-drag | Zoom: scroll | Translate: right-drag</span>
+                </div>
+                <div class="text-center mt-1">
+                    <span class="text-muted small" id="viewer-representation-note">Loading structure…</span>
+                </div>
+                {# Key for secondary structure cartoon #}
+                <div class="text-center mt-1 d-none" id="viewer-ss-legend">
+                    <span class="small me-3"><span style="display:inline-block;width:.7rem;height:.7rem;background:#e05252;border-radius:2px;"></span> helix</span>
+                    <span class="small me-3"><span style="display:inline-block;width:.7rem;height:.7rem;background:#e0b022;border-radius:2px;"></span> sheet</span>
+                    <span class="small"><span style="display:inline-block;width:.7rem;height:.7rem;background:#9ca3af;border-radius:2px;"></span> coil</span>
+                </div>
+                {# Key for pLDDT confidence (AlphaFold / ColabFold) #}
+                <div class="text-center mt-1 d-none" id="viewer-plddt-legend">
+                    <span class="small me-2"><span style="display:inline-block;width:.7rem;height:.7rem;background:#0053d6;border-radius:2px;"></span> &gt;90 very high</span>
+                    <span class="small me-2"><span style="display:inline-block;width:.7rem;height:.7rem;background:#65cbf3;border-radius:2px;"></span> 70–90 confident</span>
+                    <span class="small me-2"><span style="display:inline-block;width:.7rem;height:.7rem;background:#ffdb13;border-radius:2px;"></span> 50–70 low</span>
+                    <span class="small"><span style="display:inline-block;width:.7rem;height:.7rem;background:#ff7d45;border-radius:2px;"></span> &lt;50 disordered</span>
+                </div>
+                <div class="text-center mt-2 d-flex flex-wrap justify-content-center gap-2">
+                    <div class="btn-group btn-group-sm d-none" id="viewer-style-toggle" role="group" aria-label="Representation">
+                        <button type="button" class="btn btn-outline-secondary active" id="viewer-style-cartoon">Cartoon (SS)</button>
+                        <button type="button" class="btn btn-outline-secondary d-none" id="viewer-style-plddt">pLDDT Confidence</button>
+                        <button type="button" class="btn btn-outline-secondary" id="viewer-style-stick">Sticks</button>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary d-none" id="peptide-sdf-download">Download conformer (SDF)</button>
+                    {% if has_pdb %}
+                    <a class="btn btn-sm btn-outline-secondary" href="/search/peptide/{{ peptide.entry_id }}/pdb" download>Download predicted structure (PDB)</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if admet %}
+    <!-- ADMET-lite: sequence-derived pharmacokinetics/toxicity summary (sample.admet) -->
+    <div class="card bg-body-tertiary border-0 p-4 mt-2" id="admet-card">
+        <h3 class="h5 fw-bold mb-1">ADMET-lite profile</h3>
+        <p class="text-muted small mb-3">Computed from the sequence — physicochemistry and standard
+        peptide rules. Endpoints that need a model this project has not adopted (membrane
+        permeability above all) are listed as gaps rather than guessed.
+        {% if admet.non_standard_residues %}<span class="text-warning">Note: {{ admet.non_standard_residues }}
+        non-standard residue(s) were excluded from the ProtParam-derived values, which are therefore
+        approximate.</span>{% endif %}</p>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <table class="table table-borderless table-sm mb-0">
+                    {% set p = admet.physicochemical %}
+                    <tr><td class="text-muted">Molecular weight:</td><td class="fw-bold text-end">{{ "%.2f g/mol"|format(p.molecular_weight) if p.molecular_weight is not none else "—" }}</td></tr>
+                    <tr><td class="text-muted">Isoelectric point (pI):</td><td class="fw-bold text-end">{{ "%.2f"|format(p.isoelectric_point) if p.isoelectric_point is not none else "—" }}</td></tr>
+                    <tr><td class="text-muted">Net charge (pH 7):</td><td class="fw-bold text-end">{{ "%.2f"|format(p.net_charge_ph7) if p.net_charge_ph7 is not none else "—" }} {% if admet.flags.net_charge.class %}<span class="badge bg-secondary-subtle text-secondary-emphasis">{{ admet.flags.net_charge.class }}</span>{% endif %}</td></tr>
+                    <tr><td class="text-muted">GRAVY (hydrophobicity):</td><td class="fw-bold text-end">{{ "%.3f"|format(p.gravy) if p.gravy is not none else "—" }}</td></tr>
+                    <tr><td class="text-muted">Aromaticity:</td><td class="fw-bold text-end">{{ "%.3f"|format(p.aromaticity) if p.aromaticity is not none else "—" }}</td></tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <table class="table table-borderless table-sm mb-0">
+                    <tr><td class="text-muted">Instability index:</td><td class="fw-bold text-end">{{ "%.2f"|format(p.instability_index) if p.instability_index is not none else "—" }}
+                        {% if admet.flags.instability.stable is not none %}<span class="badge {{ 'bg-success-subtle text-success-emphasis' if admet.flags.instability.stable else 'bg-danger-subtle text-danger-emphasis' }}">{{ "stable" if admet.flags.instability.stable else "unstable" }}</span>{% endif %}</td></tr>
+                    <tr><td class="text-muted">Aliphatic index:</td><td class="fw-bold text-end">{{ "%.2f"|format(p.aliphatic_index) if p.aliphatic_index is not none else "—" }}</td></tr>
+                    <tr><td class="text-muted">Boman index:</td><td class="fw-bold text-end">{{ "%.3f"|format(p.boman_index) if p.boman_index is not none else "—" }}</td></tr>
+                    <tr><td class="text-muted">Hydrophobic moment:</td><td class="fw-bold text-end">{{ "%.4f"|format(p.hydrophobic_moment) if p.hydrophobic_moment is not none else "—" }}</td></tr>
+                    <tr><td class="text-muted">Half-life (N-end rule):</td><td class="fw-bold text-end">{% if admet.flags.half_life.n_terminal %}{{ admet.flags.half_life.n_terminal }} → {{ admet.flags.half_life.class }}{% else %}—{% endif %}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        {% if admet.flags.aggregation.hotspots %}
+        <p class="small text-muted mt-2 mb-0">Aggregation hotspots (runs of hydrophobic residues):
+            {% for h in admet.flags.aggregation.hotspots %}<span class="badge bg-warning-subtle text-warning-emphasis">{{ h.start }}–{{ h.end }}</span> {% endfor %}
+            ({{ "%.0f%%"|format(admet.flags.aggregation.hotspot_fraction * 100) }} of the sequence).</p>
+        {% endif %}
+
+        {% set computed_gaps = admet.gaps | selectattr('status', 'equalto', 'computed') | list %}
+        {% set open_gaps = admet.gaps | rejectattr('status', 'equalto', 'computed') | list %}
+        {% if computed_gaps %}
+        <hr class="my-3">
+        <ul class="list-unstyled small mb-0">
+            {% for g in computed_gaps %}
+            <li class="mb-1"><span class="badge bg-success-subtle text-success-emphasis">computed</span>
+                <span class="fw-bold">{{ g.property.replace('_', ' ') }}</span> — {{ g.note }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% if open_gaps %}
+        <hr class="my-3">
+        <p class="fw-bold small mb-2">Not computed here</p>
+        <ul class="list-unstyled small mb-0">
+            {% for g in open_gaps %}
+            <li class="mb-1"><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ g.status.replace('_', ' ') }}</span>
+                <span class="fw-bold">{{ g.property.replace('_', ' ') }}</span> — {{ g.note }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if annotation %}
+    <!-- Pre-computed comprehensive annotation (sample.peptide_annotations): predictors, hits, HMM -->
+    <div class="card bg-body-tertiary border-0 p-4 mt-2" id="annotation-card">
+        <h3 class="h5 fw-bold mb-1">Annotation</h3>
+        {% if annotation.is_circular %}
+        <p class="small mb-3"><span class="badge bg-info-subtle text-info-emphasis">circular</span>
+            <span class="text-warning">{{ annotation.circular_caveat }}</span></p>
+        {% endif %}
+
+        {% if annotation.predictors %}
+        <h4 class="h6 fw-bold mb-2">External predictors</h4>
+        <table class="table table-borderless table-sm mb-3">
+            {% for field, p in annotation.predictors.items() %}
+            <tr><td class="text-muted">{{ p.label }}:</td>
+                <td class="fw-bold text-end">{{ "%.3f"|format(p.value) if p.value is not none else "—" }}</td></tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p class="text-muted small mb-3">No external-predictor results (their environments were not
+        built when this peptide was annotated).</p>
+        {% endif %}
+
+        {% if annotation.pfam_domains %}
+        <p class="small mb-2"><span class="fw-bold">Pfam domains:</span>
+            {% for d in annotation.pfam_domains %}<span class="badge bg-secondary-subtle text-secondary-emphasis">{{ d }}</span> {% endfor %}</p>
+        {% endif %}
+
+        {% if annotation.near_identity_hits %}
+        <h4 class="h6 fw-bold mb-2">Near-identical release peptides</h4>
+        <ul class="list-unstyled small mb-3">
+            {% for h in annotation.near_identity_hits %}
+            <li><a href="/search/peptide/{{ h.entry_id }}" class="font-monospace">{{ h.entry_id }}</a>
+                — {{ "%.1f"|format(h.identity) }}% identity ({{ h.mismatches }} mismatch{{ '' if h.mismatches == 1 else 'es' }})</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if annotation.hmm_hits %}
+        <h4 class="h6 fw-bold mb-2">Family HMM hits</h4>
+        <ul class="list-unstyled small mb-0">
+            {% for h in annotation.hmm_hits %}
+            <li><a href="/families/{{ h.family_id }}" class="font-monospace">{{ h.family_id }}</a>
+                — E-value {{ "%.1e"|format(h.evalue) }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if genomic_context %}
+    <!-- RefSeq genomic context: taxonomic breakdown of where this sequence occurs (sample.genomic_context) -->
+    <div class="card bg-body-tertiary border-0 p-4 mt-2" id="genomic-context-card">
+        <h3 class="h5 fw-bold mb-1">Genomic context</h3>
+        <p class="text-muted small mb-3">Where this peptide's sequence occurs across RefSeq genomes —
+        tBLASTn hits at ≥95% coverage and identity, aggregated by taxonomy into a Krona-style
+        sunburst. {{ genomic_context.hits }} hit(s) across {{ genomic_context.genomes_with_hits }} of
+        {{ genomic_context.genomes_searched }} genomes searched.</p>
+        <div class="d-flex justify-content-center">{{ genomic_context.svg | safe }}</div>
+    </div>
+    {% endif %}
+
+    {% if structure_analysis %}
+    <!-- Structure-derived analysis from the ColabFold PDB: DSSP, Ramachandran, disorder -->
+    <div class="card bg-body-tertiary border-0 p-4 mt-2" id="structure-analysis-card"
+         data-analysis='{{ structure_analysis | tojson }}'>
+        <h3 class="h5 fw-bold mb-3">Predicted-structure analysis</h3>
+        <p class="text-muted small mb-3">From the ColabFold model — DSSP secondary structure (from
+        the actual hydrogen-bond geometry, not a sequence guess), the backbone Ramachandran plot,
+        and pLDDT-based disorder.</p>
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="small text-muted text-uppercase fw-bold mb-1" id="sa-dssp-title">DSSP secondary structure</div>
+                <div class="d-flex flex-wrap mb-3" style="gap:2px; line-height:1;" id="sa-dssp-track"></div>
+                <div class="small text-muted text-uppercase fw-bold mb-1">Disorder (per-residue pLDDT)</div>
+                <div class="table-responsive"><svg id="sa-disorder-svg" width="100%" height="120" style="min-width:420px;"></svg></div>
+                <p class="small text-muted mb-0" id="sa-disorder-note"></p>
+            </div>
+            <div class="col-lg-5">
+                <div class="small text-muted text-uppercase fw-bold mb-1">Ramachandran plot</div>
+                <svg id="sa-rama-svg" viewBox="0 0 260 260" width="260" height="260" style="max-width:100%;"></svg>
+                <p class="small text-muted mb-0" id="sa-rama-note"></p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if pdb_homology %}
+    <!-- PDB homology: closest real, experimentally-solved structure RCSB holds for this sequence,
+         with the ColabFold prediction superposed onto it (sample.pdb_homology). -->
+    <div class="card bg-body-tertiary border-0 p-4 mt-2" id="pdb-homology-card">
+        <h3 class="h5 fw-bold mb-1">Structural validation against the PDB</h3>
+        {% if pdb_homology.has_match %}
+        <p class="text-muted small mb-3">The ColabFold prediction superposed onto the closest
+        experimentally-solved structure RCSB holds for this sequence — the one check that says
+        whether the prediction agrees with a real structure, not just whether it is internally
+        self-consistent.</p>
+        <div class="row g-3">
+            <div class="col-sm-4">
+                <div class="small text-muted text-uppercase fw-bold">Reference</div>
+                <div><a href="https://www.rcsb.org/structure/{{ pdb_homology.pdb_id }}" target="_blank"
+                        rel="noopener noreferrer">{{ pdb_homology.pdb_id }}</a>
+                    chain {{ pdb_homology.chain }}</div>
+                {% if pdb_homology.title %}<div class="small text-muted">{{ pdb_homology.title }}</div>{% endif %}
+            </div>
+            <div class="col-sm-4">
+                <div class="small text-muted text-uppercase fw-bold">Sequence identity</div>
+                <div>{{ "%.0f"|format(pdb_homology.search_identity * 100) }}% (RCSB search) ·
+                    {{ "%.0f"|format(pdb_homology.structural_identity * 100) }}% (aligned region)</div>
+            </div>
+            <div class="col-sm-4">
+                <div class="small text-muted text-uppercase fw-bold">Superposition</div>
+                <div>{{ pdb_homology.rmsd }} Å CA-RMSD over {{ pdb_homology.aligned_residues }} aligned residue(s)</div>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-muted small mb-0">No PDB entry close enough to this sequence was found —
+        expected for most of this corpus, since the PDB is small and biased toward structures
+        solved because they were already of interest, not a representative sample of known AMPs.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Biological Activities Section -->
+    {% if activities %}
+    <div class="card bg-body-tertiary border-0 p-4 mt-4">
+        <h3 class="h5 fw-bold mb-3"><span class="text-gradient">Biological Activities</span></h3>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle rounded shadow-sm">
+                <thead>
+                    <tr>
+                        <th>Activity Group</th>
+                        <th>Target Organism / Cell</th>
+                        <th>Metric</th>
+                        <th>Value</th>
+                        <th>Unit</th>
+                        <th>Source</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {# Only display activities where Target Organism / Cell is defined #}
+                    {% for act in activities if act.target_organism and act.target_organism.strip() and act.target_organism.strip().lower() not in ('none', 'nan', 'n/a', '-') %}
+                    <tr>
+                        <td>{% if act.activity_group %}<span class="badge bg-success p-2">{{ act.activity_group|capitalize }}</span>{% endif %}</td>
+                        <td class="fw-bold">
+                            {% if act.target_taxonomy_url %}
+                            <a href="{{ act.target_taxonomy_url }}" target="_blank" rel="noopener noreferrer"
+                               class="text-decoration-none" title="NCBI Taxonomy {{ act.target_taxid }}">{{ act.target_organism }}</a>
+                            {% else %}{{ act.target_organism or '' }}{% endif %}
+                            {% if act.target_atcc_url %}
+                            <a href="{{ act.target_atcc_url }}" target="_blank" rel="noopener noreferrer"
+                               class="badge bg-secondary text-decoration-none ms-1" title="ATCC product page">ATCC</a>
+                            {% endif %}
+                        </td>
+                        <td>{% if act.activity_type %}<span class="badge bg-secondary p-2">{{ act.activity_type }}</span>{% endif %}</td>
+                        <td class="font-monospace text-primary fw-bold">
+                            {{ act.value if act.value is not none else '' }}
+                            {% if act.value_mM is not none or act.value_ug_ml is not none or act.potency is not none %}
+                            <div class="small text-muted fw-normal" title="Converted from the reported value and unit using this peptide's own molecular weight">
+                                {% if act.value_ug_ml is not none %}&approx; {{ '%.4g'|format(act.value_ug_ml) }} &micro;g/mL{% endif %}
+                                {% if act.value_mM is not none %}{% if act.value_ug_ml is not none %} &middot; {% endif %}{{ '%.4g'|format(act.value_mM) }} mM{% endif %}
+                                {% if act.potency is not none %}{% if act.value_mM is not none or act.value_ug_ml is not none %} &middot; {% endif %}p{{ '%.2f'|format(act.potency) }}{% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="font-monospace text-muted">{{ act.unit or '' }}</td>
+                        <td class="small">
+                            {# Only DBAASP ties a paper to an individual measurement. Where that
+                               link exists it is shown here; where it does not, the database the
+                               row was copied from is named, which is the provenance that source
+                               actually supports -- rather than a peptide-level citation dressed
+                               up as evidence for this specific measurement. #}
+                            {% if act.references %}
+                                {% for ref in act.references %}
+                                <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer"
+                                   class="badge bg-primary-subtle text-primary-emphasis text-decoration-none mb-1"
+                                   title="{{ ref.apa }}">
+                                    {% if ref.pmid %}PMID {{ ref.pmid }}{% else %}DOI{% endif %}
+                                </a>
+                                {% endfor %}
+                            {% elif act.origin_url %}
+                                <a href="{{ act.origin_url }}" target="_blank" rel="noopener noreferrer"
+                                   class="badge bg-secondary-subtle text-secondary-emphasis text-decoration-none"
+                                   title="Copied from {{ act.origin }}; that source does not cite a paper for this individual measurement. Opens the {{ 'exact record' if act.source_accession else "source database's home page" }}.">{{ act.origin }} ↗</a>
+                            {% elif act.origin %}
+                                <span class="badge bg-secondary-subtle text-secondary-emphasis"
+                                      title="Copied from {{ act.origin }}; that source does not cite a paper for this individual measurement.">{{ act.origin }}</span>
+                            {% else %}
+                                <span class="text-muted" title="No measurement-level citation; see the references below.">&mdash;</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if bibliography %}
+    <div class="card bg-body-tertiary border-0 p-4 mt-4">
+        <h3 class="h5 fw-bold mb-3"><span class="text-gradient">References</span></h3>
+        <p class="text-muted small mb-3">
+            Formatted in APA 7th style. Metadata resolved through CrossRef and PubMed from the
+            identifiers each source database records.
+        </p>
+        <ol class="mb-0 ps-3">
+            {# `apa` is preformatted by sample.references.format_apa so the citation string is
+               identical in the API, the CSV export and here. Journal italics are applied with a
+               CSS rule rather than markup in the stored string, which stays plain text. #}
+            {% for ref in bibliography %}
+            <li class="mb-2 apa-reference">
+                {{ ref.apa }}
+                {% if ref.url %}
+                <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer"
+                   class="ms-1 text-decoration-none small">&#128279;</a>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    /* APA renders the journal name and volume in italics. The stored citation is plain text so
+       that CSV and JSON consumers get a clean string, so the emphasis is applied here. */
+    .apa-reference { line-height: 1.5; }
+</style>
+
+<!-- Script for 3D molecular rendering. The 2D panel above is server-rendered HTML/CSS (a
+     sequence strip coloured by Chou-Fasman propensity) and needs no client-side drawing library.
+     Vendored locally (sample/static/js) rather than loaded from a CDN: the old URL here
+     (cdnjs.cloudflare.com/ajax/libs/3dmol/2.1.0/...) 404s outright -- cdnjs paths are
+     case-sensitive and the real one is /3Dmol/ (capital D) -- and a local copy also keeps this
+     page working on a network-restricted host. -->
+<script src="/static/js/3Dmol-min.js"></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // Draw 3D Structure using 3Dmol.js.
+        //
+        // Deliberately jQuery-free: this used to pass `$(element)` and fetch with `$.get`, which
+        // only ever worked because 3Dmol's 1.x bundle shipped jQuery with it. 3Dmol 2.x dropped
+        // that bundling, and this project loads no jQuery of its own, so both calls would now
+        // throw "$ is not defined". createViewer takes a plain element, and fetch replaces $.get.
+        const element = document.getElementById("viewer3d");
+        if (element) {
+            const viewer = $3Dmol.createViewer(element, {
+                defaultcolors: $3Dmol.rasmolElementColors
+            });
+            window.currentViewer = viewer;
+
+            // Get current theme background color
+            function getBgColor(theme) {
+                return theme === "light" ? 0xf8fafc : 0x111827;
+            }
+
+            const initialTheme = document.documentElement.getAttribute("data-bs-theme") || "dark";
+            viewer.setBackgroundColor(getBgColor(initialTheme));
+
+            // What this panel draws, in order of preference:
+            //
+            //   1. the ColabFold-predicted PDB as a CARTOON coloured by secondary structure, and
+            //   2. the RDKit-embedded SDF conformer as sticks.
+            //
+            // The order is not cosmetic. A ribbon is interpolated through the backbone, so it
+            // needs residues and named N/CA/C atoms -- which only the folded structure carries. An
+            // SDF cannot produce a cartoon at ALL: a molblock is atoms and bonds with no residue,
+            // chain or atom-name records, so 3Dmol has nothing to trace and draws an empty scene.
+            // That is also why this panel now prefers the PDB on the ~83% of peptides that have
+            // one: it was showing the small-molecule conformer even where a real fold existed.
+            //
+            // ColabFold writes no HELIX/SHEET records, so the helix/sheet assignment is 3Dmol's
+            // own, computed from backbone geometry by its PDB parser (on unless
+            // `noComputeSecondaryStructure` is passed). Atoms are then selected by the plain `ss`
+            // AtomSpec field rather than through a colorfunc, which keeps the colouring
+            // independent of how a particular 3Dmol build threads callbacks into cartoon geometry.
+            const entryId = "{{ peptide.entry_id }}";
+            const hasPdb = {{ 'true' if has_pdb else 'false' }};
+            const sdfUrl = `/search/peptide/${entryId}/sdf`;
+            const pdbUrl = `/search/peptide/${entryId}/pdb`;
+
+            // The same three colours as the 2D secondary-structure track above.
+            const SS_HELIX = "#e05252", SS_SHEET = "#e0b022", SS_COIL = "#9ca3af";
+            const STICK_STYLE = { stick: { radius: 0.15 }, sphere: { scale: 0.25 } };
+
+            const note = document.getElementById("viewer-representation-note");
+            const ssLegend = document.getElementById("viewer-ss-legend");
+            const plddtLegend = document.getElementById("viewer-plddt-legend");
+            const styleToggle = document.getElementById("viewer-style-toggle");
+            const cartoonBtn = document.getElementById("viewer-style-cartoon");
+            const plddtBtn = document.getElementById("viewer-style-plddt");
+            const stickBtn = document.getElementById("viewer-style-stick");
+            const resetBtn = document.getElementById("viewer-reset-btn");
+            const fullscreenBtn = document.getElementById("viewer-fullscreen-btn");
+            const containerBox = document.getElementById("molecule-3d-container");
+            let sdfText = null;
+
+            function drawCartoon() {
+                viewer.setStyle({}, { cartoon: { color: SS_COIL, arrows: true } });
+                viewer.setStyle({ ss: "h" }, { cartoon: { color: SS_HELIX, arrows: true } });
+                viewer.setStyle({ ss: "s" }, { cartoon: { color: SS_SHEET, arrows: true } });
+                viewer.render();
+                if (ssLegend) ssLegend.classList.remove("d-none");
+                if (plddtLegend) plddtLegend.classList.add("d-none");
+            }
+
+            function drawPlddt() {
+                // AlphaFold/ColabFold standard pLDDT confidence coloring (stored in B-factor)
+                const model = viewer.getModel();
+                if (model) {
+                    const atoms = model.selectedAtoms({});
+                    atoms.forEach(a => {
+                        let col = '#ff7d45'; // <50 disordered (orange)
+                        if (a.b >= 90) col = '#0053d6'; // >90 very high (dark blue)
+                        else if (a.b >= 70) col = '#65cbf3'; // 70-90 confident (light blue)
+                        else if (a.b >= 50) col = '#ffdb13'; // 50-70 low (yellow)
+                        viewer.setStyle({serial: a.serial}, {cartoon: {color: col, arrows: true}});
+                    });
+                }
+                viewer.render();
+                if (ssLegend) ssLegend.classList.add("d-none");
+                if (plddtLegend) plddtLegend.classList.remove("d-none");
+            }
+
+            function drawSticks() {
+                viewer.setStyle({}, STICK_STYLE);
+                viewer.render();
+                if (ssLegend) ssLegend.classList.add("d-none");
+                if (plddtLegend) plddtLegend.classList.add("d-none");
+            }
+
+            function setActive(active) {
+                [cartoonBtn, plddtBtn, stickBtn].forEach(b => b && b.classList.remove("active"));
+                if (active) active.classList.add("active");
+            }
+
+            if (resetBtn) {
+                resetBtn.addEventListener("click", () => {
+                    viewer.zoomTo();
+                });
+            }
+
+            if (fullscreenBtn && containerBox) {
+                fullscreenBtn.addEventListener("click", () => {
+                    if (!document.fullscreenElement) {
+                        containerBox.requestFullscreen().catch(err => {
+                            console.warn("Fullscreen request failed:", err);
+                        });
+                    } else {
+                        document.exitFullscreen();
+                    }
+                });
+                document.addEventListener("fullscreenchange", () => {
+                    const isFull = !!document.fullscreenElement;
+                    fullscreenBtn.textContent = isFull ? "Exit Fullscreen" : "⛶ Fullscreen";
+                    setTimeout(() => {
+                        viewer.resize();
+                        viewer.zoomTo();
+                    }, 100);
+                });
+            }
+
+            function revealDownload() {
+                const dl = document.getElementById("peptide-sdf-download");
+                if (dl) dl.classList.remove("d-none");
+            }
+
+            function notAvailable() {
+                element.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted">3D Structure model not available.</div>';
+                if (note) note.textContent = "";
+            }
+
+            // The sticks fallback, also used for a fold too short to be worth a ribbon.
+            function showConformer(why) {
+                return fetch(sdfUrl)
+                    .then(r => { if (!r.ok) throw new Error("no conformer"); return r.text(); })
+                    .then(text => {
+                        sdfText = text;
+                        viewer.addModel(text, "sdf");
+                        drawSticks();
+                        viewer.zoomTo();
+                        if (note) note.textContent = why;
+                        revealDownload();
+                    });
+            }
+
+            if (hasPdb) {
+                fetch(pdbUrl)
+                    .then(r => { if (!r.ok) throw new Error("no fold"); return r.text(); })
+                    .then(text => {
+                        viewer.addModel(text, "pdb");
+                        const residues = viewer.getModel().selectedAtoms({ atom: "CA" }).length;
+                        if (residues < 4) {
+                            // A ribbon through three or fewer CA positions is a line, not a fold.
+                            viewer.removeAllModels();
+                            return showConformer(
+                                "Too short to draw as a ribbon \u2014 showing the RDKit conformer as sticks.");
+                        }
+                        const urlParams = new URLSearchParams(window.location.search);
+                        if (urlParams.get("style") === "plddt" || window.location.hash === "#plddt") {
+                            drawPlddt();
+                            setActive(plddtBtn);
+                        } else {
+                            drawCartoon();
+                            setActive(cartoonBtn);
+                        }
+                        viewer.zoomTo();
+                        if (note) {
+                            note.textContent = "ColabFold-predicted fold (" + residues + " residues). "
+                                + "Toggle between Secondary Structure and AlphaFold pLDDT Confidence modes.";
+                        }
+                        if (styleToggle) styleToggle.classList.remove("d-none");
+                        if (plddtBtn) plddtBtn.classList.remove("d-none");
+                        revealDownload();
+                    })
+                    .catch(() => showConformer(
+                        "Predicted fold could not be loaded \u2014 showing the RDKit conformer as sticks.")
+                        .catch(notAvailable));
+            } else {
+                showConformer("RDKit-embedded conformer, shown as sticks. No predicted fold exists "
+                    + "for this peptide yet, so there is no backbone to draw a ribbon through.")
+                    .catch(notAvailable);
+            }
+
+            // Both representations come from the same all-atom PDB when there is one, so the
+            // toggle restyles the loaded model rather than fetching anything further.
+            if (cartoonBtn) cartoonBtn.addEventListener("click", () => { drawCartoon(); setActive(cartoonBtn); });
+            if (plddtBtn) plddtBtn.addEventListener("click", () => { drawPlddt(); setActive(plddtBtn); });
+            if (stickBtn) stickBtn.addEventListener("click", () => { drawSticks(); setActive(stickBtn); });
+
+            const dlBtn = document.getElementById("peptide-sdf-download");
+            if (dlBtn) {
+                const save = text => {
+                    const blob = new Blob([text], {type: "chemical/x-mdl-sdfile"});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = entryId + ".sdf";
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                };
+                dlBtn.addEventListener("click", () => {
+                    // In the cartoon path the viewer is showing the PDB and the conformer was
+                    // never fetched, so it is fetched on demand here rather than on every load.
+                    if (sdfText) { save(sdfText); return; }
+                    dlBtn.disabled = true;
+                    fetch(sdfUrl)
+                        .then(r => { if (!r.ok) throw new Error("no conformer"); return r.text(); })
+                        .then(text => { sdfText = text; save(text); })
+                        .catch(() => { dlBtn.textContent = "Conformer unavailable"; })
+                        .finally(() => { dlBtn.disabled = false; });
+                });
+            }
+
+            window.addEventListener("themechange", (e) => {
+                viewer.setBackgroundColor(getBgColor(e.detail.theme));
+                viewer.render();
+            });
+        }
+    });
+</script>
+
+
+<script>
+// Structure-derived analysis diagrams (DSSP secondary structure, Ramachandran, disorder), drawn
+// from the ColabFold PDB the server already parsed. Pure SVG, theme-aware.
+(function () {
+    const card = document.getElementById("structure-analysis-card");
+    if (!card) return;
+    let data;
+    try { data = JSON.parse(card.getAttribute("data-analysis")); } catch (e) { return; }
+    const ns = "http://www.w3.org/2000/svg";
+    const stateColor = {helix: "#e05252", sheet: "#e0b022", coil: "#6b7280"};
+
+    // 1. DSSP secondary-structure track (or hide the title when DSSP is unavailable).
+    const dssp = data.dssp;
+    if (dssp && dssp.residues && dssp.residues.length) {
+        document.getElementById("sa-dssp-title").textContent =
+            `DSSP secondary structure — ${Math.round(dssp.summary.helix*100)}% helix · ${Math.round(dssp.summary.sheet*100)}% sheet · ${Math.round(dssp.summary.coil*100)}% coil`;
+        const track = document.getElementById("sa-dssp-track");
+        track.innerHTML = dssp.residues.map(r => {
+            const c = stateColor[r.state] || stateColor.coil;
+            return `<span class="d-inline-flex align-items-center justify-content-center font-monospace fw-bold" style="width:1.5em;height:1.5em;font-size:0.8rem;border-radius:3px;background:${c}33;color:${c};border:1px solid ${c}66;" title="${r.aa}${r.index+1}: ${r.state} (DSSP ${r.ss})">${r.aa}</span>`;
+        }).join("");
+    } else {
+        document.getElementById("sa-dssp-title").textContent = "DSSP secondary structure — mkdssp not installed; see the sequence-propensity panel above.";
+    }
+
+    // 2. Disorder track: per-residue pLDDT as bars, threshold line at 50.
+    const dis = data.disorder || {};
+    const plddt = dis.plddt || [];
+    const svgD = document.getElementById("sa-disorder-svg");
+    if (plddt.length) {
+        const n = plddt.length, pad = 24, W = Math.max(420, pad*2 + n*10), H = 120, baseY = 95;
+        svgD.setAttribute("viewBox", `0 0 ${W} ${H}`);
+        const bw = (W - pad*2) / n;
+        function col(p) { return p >= 70 ? "#3b82f6" : (p >= 50 ? "#e0b022" : "#e05252"); }
+        let inner = "";
+        // threshold line at pLDDT 50
+        const y50 = baseY - (50/100)*(baseY-10);
+        inner += `<line x1="${pad}" y1="${y50}" x2="${W-pad}" y2="${y50}" stroke="#e05252" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>`;
+        inner += `<text x="${pad}" y="${y50-3}" font-size="9" fill="#e05252">disorder (pLDDT 50)</text>`;
+        plddt.forEach((p, i) => {
+            const h = (p/100)*(baseY-10);
+            inner += `<rect x="${pad + i*bw}" y="${baseY - h}" width="${Math.max(1,bw-1)}" height="${h}" fill="${col(p)}"><title>residue ${i+1}: pLDDT ${p}</title></rect>`;
+        });
+        inner += `<text x="${pad}" y="${H-4}" font-size="9" fill="currentColor">residue 1</text><text x="${W-pad}" y="${H-4}" font-size="9" fill="currentColor" text-anchor="end">${n}</text>`;
+        svgD.innerHTML = inner;
+        document.getElementById("sa-disorder-note").textContent =
+            `Mean pLDDT ${dis.mean_plddt}. ${Math.round((dis.disorder_fraction||0)*100)}% of residues below the pLDDT 50 disorder threshold.`;
+    }
+
+    // 3. Ramachandran plot: phi (x) vs psi (y), -180..180.
+    const rama = data.ramachandran || [];
+    const svgR = document.getElementById("sa-rama-svg");
+    const S = 260, m = 30, plot = S - 2*m;
+    function toX(phi) { return m + (phi + 180) / 360 * plot; }
+    function toY(psi) { return m + (180 - psi) / 360 * plot; }
+    let r = `<rect x="${m}" y="${m}" width="${plot}" height="${plot}" fill="none" stroke="currentColor" stroke-opacity="0.3"/>`;
+    // zero axes
+    r += `<line x1="${toX(0)}" y1="${m}" x2="${toX(0)}" y2="${S-m}" stroke="currentColor" stroke-opacity="0.15"/>`;
+    r += `<line x1="${m}" y1="${toY(0)}" x2="${S-m}" y2="${toY(0)}" stroke="currentColor" stroke-opacity="0.15"/>`;
+    // Reference regions, replacing the two hand-placed "basin hint" circles that used to stand in
+    // for them. These are the favoured and allowed contours of the Top500 reference distribution
+    // (Lovell et al. 2003), computed server-side in sample.structure_analysis from the tables
+    // pyrama packages, and shipped as polygons rather than a rendered image: ~33 KB of vector
+    // paths against ~303 KB for the equivalent matplotlib SVG, and it stays theme-aware and
+    // hoverable instead of becoming a flat bitmap.
+    //
+    // The shaded backdrop is the GENERAL-case distribution, as on MolProbity's combined plot,
+    // while every point is classified against its OWN residue type's distribution. Glycine,
+    // proline and pre-proline differ enough that a glycine can sit outside the shaded region and
+    // still be favoured -- which the previous box model could not express at all, since it did not
+    // know what residue it was scoring.
+    const ref = data.ramachandran_reference || null;
+    if (ref && ref.contours) {
+        let regions = `<defs><clipPath id="sa-rama-clip"><rect x="${m}" y="${m}" width="${plot}" height="${plot}"/></clipPath></defs>`;
+        const toPath = poly => "M" + poly.map(p => `${toX(p[0]).toFixed(1)},${toY(p[1]).toFixed(1)}`).join("L") + "Z";
+        // evenodd so each band's interior holes -- where the denser band sits -- stay unshaded.
+        [["allowed", "#7fd9ff", "0.20"], ["favored", "#38bdf8", "0.34"]].forEach(pair => {
+            const band = pair[0], fill = pair[1], opacity = pair[2];
+            const d = (ref.contours[band] || []).map(toPath).join("");
+            if (d) {
+                regions += `<path d="${d}" fill="${fill}" fill-opacity="${opacity}" fill-rule="evenodd" clip-path="url(#sa-rama-clip)"><title>${band} region — ${ref.reference || "reference distribution"}</title></path>`;
+            }
+        });
+        r = regions + r;   // behind the frame, the axes and the points
+    }
+    function regionColor(region) {
+        return region === "favored" ? "#22c55e" : (region === "allowed" ? "#e0b022" : "#e05252");
+    }
+    // Marker shape encodes the residue type, because that is which distribution the point was
+    // scored against -- otherwise a favoured glycine outside the general-case shading just looks
+    // like a mistake.
+    function marker(a, x, y, fill, tip) {
+        const t = a.residue_type;
+        if (t === "GLY") {
+            return `<polygon points="${x},${(y - 4).toFixed(1)} ${(x - 3.6).toFixed(1)},${(y + 2.8).toFixed(1)} ${(x + 3.6).toFixed(1)},${(y + 2.8).toFixed(1)}" fill="${fill}" fill-opacity="0.9" stroke="currentColor" stroke-opacity="0.5" stroke-width="0.5">${tip}</polygon>`;
+        }
+        if (t === "PRO" || t === "PRE-PRO") {
+            return `<rect x="${(x - 3).toFixed(1)}" y="${(y - 3).toFixed(1)}" width="6" height="6" fill="${fill}" fill-opacity="0.9" stroke="currentColor" stroke-opacity="0.5" stroke-width="0.5">${tip}</rect>`;
+        }
+        return `<circle cx="${x}" cy="${y}" r="3" fill="${fill}" fill-opacity="0.9" stroke="currentColor" stroke-opacity="0.5" stroke-width="0.5">${tip}</circle>`;
+    }
+    rama.forEach(a => {
+        if (a.phi === null || a.psi === null) return;
+        const x = +toX(a.phi).toFixed(1), y = +toY(a.psi).toFixed(1);
+        const typeTxt = a.residue_type ? `, ${a.residue_type}` : "";
+        const densTxt = (a.density === null || a.density === undefined) ? "" : `, density ${a.density}`;
+        const tip = `<title>${a.residue}: φ ${a.phi}, ψ ${a.psi} — ${a.region}${typeTxt}${densTxt}</title>`;
+        r += marker(a, x, y, regionColor(a.region), tip);
+    });
+    r += `<text x="${S/2}" y="${S-8}" font-size="10" fill="currentColor" text-anchor="middle">φ (phi)</text>`;
+    r += `<text x="10" y="${S/2}" font-size="10" fill="currentColor" text-anchor="middle" transform="rotate(-90 10 ${S/2})">ψ (psi)</text>`;
+    svgR.innerHTML = r;
+
+    // Favored/allowed/outlier rollup (sample.structure_analysis.ramachandran_summary). The method
+    // sentence comes from the SERVER, so this page can never claim a rigour the classifier did not
+    // use: it names the Top500 tables only when they were actually read, and names the box
+    // fallback when they were not.
+    const ramaSummary = data.ramachandran_summary;
+    if (ramaSummary && ramaSummary.n_scored) {
+        const method = (ref && ref.method) ? ref.method
+            : "Coarse box approximation of the textbook basins — reference tables unavailable.";
+        document.getElementById("sa-rama-note").innerHTML =
+            `<span style="color:#22c55e">${ramaSummary.favored_pct}% favored</span> · ` +
+            `<span style="color:#e0b022">${ramaSummary.allowed_pct}% allowed</span> · ` +
+            `<span style="color:#e05252">${ramaSummary.outlier_pct}% outlier</span> ` +
+            `(${ramaSummary.n_scored} residue(s) scored). ${method} ` +
+            `Markers: ● general · ▲ glycine · ■ proline / pre-proline.`;
+    }
+})();
+</script>
+{% endblock %}

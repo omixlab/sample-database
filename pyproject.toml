@@ -1,0 +1,142 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sample"
+version = "1.0.0"
+description = "sAMPle: A web server and data engineering pipeline for antimicrobial peptides"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+# Kept in step with what the code actually imports. Audited by walking every `import` in
+# sample/ and scripts/ and diffing against this list, which turned up twelve packages the
+# pipeline imports but never declared -- jsonschema and pyahocorasick among them, both on
+# core paths -- and eight declared packages that nothing imports any more (metapub, elsapy,
+# docling, python-epo-ops-client, fastcoref, tiktoken, aiohttp, pdf2image), left behind by
+# the move from an LLM-first extractor to the current classical-NLP-first one.
+dependencies = [
+    # Core data handling
+    "pandas",
+    "numpy",
+    "scipy",
+    "pyarrow",              # pandas .to_parquet in sample/serialize.py
+    "biopython",
+    # The Top500 Ramachandran reference tables (Lovell et al. 2003), per residue type, read
+    # by sample/structure_analysis.py. Data files only -- the package is never imported, since
+    # its __init__ pulls in matplotlib.pyplot. It declares NO licence, knowingly accepted --
+    # see DECISIONS.md (2026-09-16).
+    "pyrama",
+    # Contour extraction for those tables (favoured/allowed polygons for the peptide page's
+    # plot). Ships as a matplotlib dependency, but this project imports it directly, so it is
+    # declared directly rather than relied on transitively.
+    "contourpy",
+    "python-dateutil",
+    "python-dotenv",
+    # sample/models.py and sample/engine.py -- the entity classes and the dialect layer that lets
+    # the same schema run on SQLite, PostgreSQL and MySQL. It was installed only as a transitive
+    # dependency of something else and declared nowhere, which meant `sample.models` could not be
+    # imported in any of the specialised environments.
+    "sqlalchemy>=2.0",
+
+    # Text mining and NLP
+    "pyahocorasick",        # sample/nlp.py -- organism/cell-line/peptide-name automata
+    "spacy",
+    "nltk",
+    "sentence-transformers",
+    "torch",
+    "transformers",
+
+    # Cheminformatics
+    "rdkit",
+
+    # PDF and web scraping
+    "PyMuPDF",
+    "pdfplumber",           # sample/pdf_tables.py
+    "beautifulsoup4",
+    "requests",
+    "urllib3",
+    "selenium",
+    "selenium-stealth",
+    "webdriver-manager",
+
+    # LLM backends
+    "ollama",
+    "google-genai",
+    "json-repair",          # sample/llm.py -- recovers truncated model JSON
+
+    # Validation and schema
+    "jsonschema",           # sample/validation.py -- step 13 schema check
+
+    # Machine learning and analysis
+    "scikit-learn",
+    "xgboost",              # sample/ml_models.py -- the base estimator for every trained model
+    "matplotlib",
+    "seaborn",
+    "umap-learn",
+
+    # Peptide descriptors
+    "peptides",             # sample/peptide_predictors.py -- the 111-descriptor block
+    # NOT listed: the standalone `hdbscan` package. sample/analysis.py tries
+    # sklearn.cluster.HDBSCAN first (present since scikit-learn 1.3), falls back to the standalone
+    # package, then to KMeans -- so it is an optional third choice, not a requirement.
+
+    # Web dashboard, JSON API and background prediction jobs
+    "fastapi",              # sample/api/ -- dashboard and /api/v1, with generated OpenAPI
+    "uvicorn[standard]",    # ASGI server used by the docker-compose `web` service
+    "pydantic",             # sample/api/schemas.py -- the public entity shapes
+    "jinja2",               # dashboard templates, rendered through Starlette
+    "celery",               # sample/tasks.py -- the background prediction worker
+    "redis",                # Celery broker/result-backend client
+    "tqdm",
+]
+
+[project.optional-dependencies]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "sphinx-autodoc-typehints",
+    # PDF output. Chosen over Sphinx's `latexpdf` builder, which needs a full TeX distribution
+    # (gigabytes, and root to install); rst2pdf renders through reportlab from pip alone.
+    "rst2pdf",
+]
+test = [
+    "pytest",
+    "pytest-cov",
+]
+
+[project.scripts]
+sample-cli = "sample.cli:main"
+
+[tool.setuptools]
+packages = ["sample"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Tests must not reach the network or a GPU. -p no:randomly keeps failures reproducible.
+addopts = "-q --strict-markers"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
+
+[tool.coverage.run]
+source = ["sample"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    # Import-time fallbacks for optional dependencies. Exercising both arms means uninstalling a
+    # package mid-suite; the fallback is asserted by the environment files instead.
+    "except ImportError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]

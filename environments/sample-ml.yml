@@ -1,0 +1,118 @@
+name: sample-ml
+channels:
+  - conda-forge
+  - bioconda      # supplies `cd-hit`; it is on no other channel, same as sample.yml's own bioconda
+                  # line for `blast`
+  - defaults
+
+# Steps 8 and 21-25: the sequence filter, model training and validation, exploratory analysis,
+# anomaly detection, and the chemical-space comparison.
+#
+# VERSION PINS BELOW ARE SHARED WITH sample-web.yml AND MUST STAY IN STEP.
+#
+# This environment TRAINS the models; sample-web LOADS them. A pickled estimator carries no
+# version negotiation -- unpickling a scikit-learn 1.9 RandomForest under 1.3 either raises
+# InconsistentVersionWarning and hands back a subtly different object, or fails outright. The
+# webserver would then be serving predictions from an estimator that is not the one that was
+# validated, with nothing in the output to indicate it. torch/transformers carry the identical
+# risk for any model whose pickle holds PyTorch state (e.g. a trainable attention head on top of
+# the frozen ESM-2 backbone), not just scikit-learn/xgboost estimators -- pinned together for the
+# same reason.
+#
+# `make check-envs` asserts that the installed versions in the two environments actually match,
+# so the pins are verified rather than merely intended.
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      # Core data handling
+      - pandas
+      # Pinned <2 to match sample-extraction, which cannot go higher: its spacy 3.7.5 /
+      # thinc / blis stack requires numpy 1.x. The pin has to be shared because pickles cross
+      # that boundary -- step 8 writes rf_filter_model.pkl here and step 7 loads it in
+      # sample-extraction -- and NumPy 2 changed the array pickle format. `make check-envs`
+      # asserts the installed versions actually agree.
+      - numpy<2
+      - scipy
+      # Imported at module level by sample/cli.py and sample/config.py, so it is required in
+      # EVERY environment that runs `sample-cli`, not only the ones that read a .env file.
+      - python-dotenv
+
+      # --- Pinned: must equal sample-web.yml. See above. ---
+      - scikit-learn==1.9.0
+      - xgboost==3.2.0
+      # -----------------------------------------------------
+
+      # sample.flaml_xgboost: hyperparameter search over XGBoost (time-budgeted, via
+      # flaml.AutoML) as an alternative to this project's fixed-hyperparameter XGBoost
+      # (sample.ml_models._make_model) -- not needed by sample-web (never unpickles a model whose
+      # class lives in this package; the fitted estimator it returns is a plain xgboost.Booster-
+      # backed sklearn wrapper, same as _make_model's own XGBClassifier).
+      - flaml[xgboost]
+
+      # Plots for steps 35-38 (validate-ml, EDA, anomaly detection, chemical-space comparison)
+      - matplotlib
+      - seaborn
+      - umap-learn
+      # paper/generate_dataset_report.py's figures -- not a numbered pipeline step, but runs in
+      # this environment for the same UMAP/embedding access the EDA steps above already need.
+      - plotly
+      - kaleido            # static PNG export for plotly figures
+      # NOT listed: the standalone `hdbscan` package. sample/analysis.py tries
+      # sklearn.cluster.HDBSCAN first (present since scikit-learn 1.3), falls back to the
+      # standalone package, then to KMeans -- an optional third choice, not a requirement.
+
+      # Morgan fingerprints for the chemical-space comparison (step 38)
+      - rdkit
+      # Training reads the descriptor columns from the release CSV and so does not need this to
+      # fit a model -- but tests/test_ml_models.py exercises inference._descriptor_row to assert
+      # the served features equal the trained ones, and that assertion silently passes on NaN
+      # when peptides.py is absent. Present here so the parity check can actually fail.
+      - peptides
+
+      # Near-identity peptide clustering for the train/holdout group split --
+      # sample.ml_models._cluster_groups (steps 41/42) calls sample.families.cluster, which needs
+      # this. Never declared here before, the same class of gap fixed for sample-extraction.yml
+      # earlier: the module-level import only ever raised for real under this environment, and
+      # every test exercising it had been running under a DIFFERENT env (`sample`) that happened
+      # to have this installed ad hoc, which is why it went unnoticed until traced directly.
+      - pepmatch
+      # sample.ml_models._cluster_groups prefers sample.families.cluster_cdhit over the PepMatch
+      # route above whenever it is on PATH -- GROUPING_IDENTITY (40%) sits below what PepMatch's
+      # capped mismatch budget can deliver for anything longer than a few residues. Absent this,
+      # the split still completes (PepMatch fallback, with a logged warning), just clustered at a
+      # higher effective identity than the 40% the split is supposed to be reduced to.
+      - cd-hit
+
+      # ESM-2 embeddings are re-read for the UMAP projections in the EDA step, and (step 42) for
+      # sample.esm_finetune's full end-to-end fine-tune of the ESM-2 backbone itself (unlike every
+      # other model here, which trains on the ESM-2 embedding as a frozen, precomputed feature).
+      #
+      # The default PyPI wheel is built for CUDA 13. This machine's driver (535.x) tops out at
+      # CUDA 12.2, so that wheel installs ~5 GB of CUDA libraries and then reports
+      # torch.cuda.is_available() == False -- every embedding pass silently falls back to CPU.
+      # cu121 wheels work with driver >= 525 and light up the GPU for the ESM-2 pass. Same fix
+      # already applied to sample.yml -- verified there on an RTX 3060 (cuda.is_available() True);
+      # this environment had never gotten it, so every embedding/training pass here ran CPU-only
+      # with a real GPU sitting idle.
+      #
+      # transformers is pinned (not just torch) because sample.esm_finetune.ESM2FineTuneEstimator
+      # pickles a HF model's state_dict across the train/serve boundary -- an unpinned transformers
+      # can change its class layout across minor versions and break unpickling on the sample-web
+      # side even with torch matching; `make check-envs` verifies the two environments' installed
+      # versions actually agree, not just that both files name the same pin.
+      - --extra-index-url https://download.pytorch.org/whl/cu121
+      - torch==2.5.1+cu121
+      - transformers==5.16.1
+
+      # tests/test_esm_finetune.py needs a real ESM-2 forward/backward pass -- the default `sample`
+      # test environment carries a stray torchvision (a transitive docling-ibm-models/vllm
+      # dependency, unrelated to this project) incompatible with the torch pin above, which crashes
+      # transformers' EsmModel import chain there; this environment has no torchvision at all and
+      # imports cleanly, so that test file's real coverage lives here, not in `make test`'s default
+      # env. pytest itself is not a transitive dependency of anything else pinned in this file
+      # (unlike sample.yml, where it rides in on another package), so it needs to be named
+      # explicitly.
+      - pytest
+
+      - tqdm

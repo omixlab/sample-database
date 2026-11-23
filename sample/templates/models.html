@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card p-4 mb-4">
+    <h1 class="display-6 fw-bold mb-3"><span class="text-gradient">Machine Learning Models</span></h1>
+    <p class="text-muted mb-0">Models are trained per activity class, target and assay, from several
+    feature representations, and only those passing the quality gate are published. Choose one below
+    and submit peptides to score; the job runs in the background and you will get a job id to follow.</p>
+</div>
+
+<div class="card p-4 mb-4">
+    <h2 class="h5 fw-bold mb-3">Predict activity</h2>
+
+    {% if models %}
+    <form id="predict-form">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="model_id" class="form-label small text-muted text-uppercase fw-bold">Model</label>
+                <select class="form-select" id="model_id" name="model_id" required>
+                    {% for m in models %}
+                    {% set primary = "r2" if m.learning_task == "regression" else "roc_auc" %}
+                    <option value="{{ m.model_id }}">
+                        {{ m.label }}{% if m.metrics and m.metrics.holdout and m.metrics.holdout[primary] is not none %} ({{ primary|upper if primary == "r2" else "AUC" }} {{ "%.3f"|format(m.metrics.holdout[primary]) }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">{{ models|length }} model{{ '' if models|length == 1 else 's' }} available.</div>
+            </div>
+            <div class="col-md-6">
+                <label for="peptides" class="form-label small text-muted text-uppercase fw-bold">Peptides</label>
+                <textarea class="form-control font-monospace" id="peptides" name="peptides" rows="6"
+                          placeholder="One sequence per line, or FASTA:&#10;&gt;magainin-2&#10;GIGKFLHSAKKFGKAFVGEIMNS&#10;&gt;melittin&#10;GIGAVLKVLTTGLPALISWIKRKRQQ" required></textarea>
+                <div class="form-text">Up to {{ max_peptides }} sequences per job. Standard residues only.</div>
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-3 mt-3">
+            <button type="submit" class="btn btn-gradient px-4" id="predict-submit">Run prediction</button>
+            <div id="predict-spinner" class="d-none d-flex align-items-center gap-2 text-muted">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Submitting…</span>
+                </div>
+                <span>Queueing job…</span>
+            </div>
+        </div>
+
+        <div id="predict-error" class="alert alert-danger mt-3 d-none" role="alert"></div>
+        <div id="predict-queued" class="alert alert-info mt-3 d-none" role="status">
+            Job <code id="predict-job-id"></code> queued.
+            <a id="predict-job-link" href="#" class="alert-link">Follow its progress →</a>
+        </div>
+    </form>
+    {% else %}
+    <div class="text-center py-4 text-muted border border-secondary border-dashed rounded bg-body-tertiary">
+        <p class="mb-0">No published models found. Run step 45
+            (<code>make step_45_train_antibacterial_ml_model</code>) and step 46
+            (<code>make step_46_train_organism_specific_ml_models</code>) to train and publish
+            models. A model is offered here only once the rollout records its namespace as
+            written, so a run that failed part-way leaves nothing selectable.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% if jobs %}
+<div class="card p-4 mb-4">
+    <h2 class="h5 fw-bold mb-3">Your Recent Jobs (Current Session)</h2>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Job</th><th>Model</th><th>Peptides</th><th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for j in jobs %}
+                <tr>
+                    <td><a href="/predict/{{ j.job_id }}" class="font-monospace small">{{ j.job_id[:8] }}</a></td>
+                    <td class="small text-muted">{{ j.model_id }}</td>
+                    <td>{{ j.n_peptides }}</td>
+                    <td>
+                        {% if j.status == 'SUCCESS' %}<span class="badge bg-success">Success</span>
+                        {% elif j.status == 'FAILURE' %}<span class="badge bg-danger">Failed</span>
+                        {% elif j.status == 'RUNNING' %}<span class="badge bg-primary">Running</span>
+                        {% else %}<span class="badge bg-secondary">Pending</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="card p-4">
+    <h2 class="h5 fw-bold mb-3">Model metrics</h2>
+
+    {% if models and models[0].metrics %}
+    <p class="text-muted small mb-3">One row per (target, assay, feature block): every quantitative
+    assay is scoped to a single target and a single metric, never pooled across organisms or across
+    assay types. Classification reports ROC-AUC (0.5 = chance); regression reports R² (0 = no
+    better than the mean).</p>
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Model</th><th>Assay</th><th>Task</th><th>Features</th><th class="text-end">n</th>
+                    <th class="text-end">Holdout score</th><th class="text-end">95% CI</th>
+                    <th class="text-end">Dataset</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in models %}
+                {% set primary = "r2" if m.learning_task == "regression" else "roc_auc" %}
+                <tr>
+                    <td class="small">{{ m.peptide_type }}{% if m.target %} <span class="text-muted">vs {{ m.target }}</span>{% endif %}</td>
+                    <td class="small text-muted">{{ '' if m.assay_type in ('any', '') else m.assay_type.upper() }}</td>
+                    <td class="small">
+                        {% if m.learning_task == "regression" %}<span class="badge bg-info-subtle text-info-emphasis">regression</span>
+                        {% else %}<span class="badge bg-primary-subtle text-primary-emphasis">classification</span>{% endif %}
+                    </td>
+                    <td class="small text-muted">{{ m.feature_block }}</td>
+                    <td class="text-end">{{ m.metrics.n_samples or '—' }}</td>
+                    <td class="text-end fw-bold">{% if m.metrics.holdout and m.metrics.holdout[primary] is not none %}{{ primary|upper if primary == "r2" else "AUC" }} {{ "%.3f"|format(m.metrics.holdout[primary]) }}{% else %}—{% endif %}</td>
+                    <td class="text-end">{% if m.metrics.holdout_ci95 and m.metrics.holdout_ci95[primary] %}[{{ "%.3f"|format(m.metrics.holdout_ci95[primary][0]) }}, {{ "%.3f"|format(m.metrics.holdout_ci95[primary][1]) }}]{% else %}—{% endif %}</td>
+                    <td class="text-end"><a href="/models/{{ m.model_id }}/dataset" class="btn btn-sm btn-outline-secondary px-2 py-0">View</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% elif metrics %}
+    <div class="alert alert-warning small">
+        These are the legacy single-model metrics from <code>validation_report.json</code>. Note the
+        gap between the holdout and cross-validated scores — the holdout figure is measured on a
+        random split and is not a reliable estimate of performance on novel sequences.
+    </div>
+    <div class="table-responsive mt-3">
+        <table class="table table-striped align-middle">
+            <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+            <tbody>
+                <tr><td class="text-muted">Holdout accuracy</td><td class="fw-bold">{{ "%.4f"|format(metrics.overall_accuracy) }}</td></tr>
+                <tr><td class="text-muted">Holdout ROC-AUC</td><td class="fw-bold">{{ "%.4f"|format(metrics.overall_auc_score) }}</td></tr>
+                <tr><td class="text-muted">Holdout precision</td><td class="fw-bold">{{ "%.4f"|format(metrics.overall_precision) }}</td></tr>
+                <tr><td class="text-muted">Holdout recall</td><td class="fw-bold">{{ "%.4f"|format(metrics.overall_recall) }}</td></tr>
+                <tr><td class="text-muted">Holdout F1</td><td class="fw-bold">{{ "%.4f"|format(metrics.overall_f1_score) }}</td></tr>
+                <tr><td class="text-muted">5-fold CV accuracy</td><td class="fw-bold text-gradient">{{ "%.4f"|format(metrics.cv_accuracy_mean) }} (&plusmn; {{ "%.4f"|format(metrics.cv_accuracy_std) }})</td></tr>
+                <tr><td class="text-muted">5-fold CV ROC-AUC</td><td class="fw-bold">{{ "%.4f"|format(metrics.cv_auc_mean) }} (&plusmn; {{ "%.4f"|format(metrics.cv_auc_std) }})</td></tr>
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted border border-secondary border-dashed rounded bg-body-tertiary">
+        <p class="mb-0">No model validation metrics loaded. Run steps 45 and 46.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% if benchmarks %}
+<div class="card p-4 mt-4">
+    <h2 class="h5 fw-bold mb-1">Benchmark against external reference tools</h2>
+    <p class="text-muted small mb-3">Each sAMPle model and its reference tool are scored on the
+    <strong>same held-out peptides</strong> — a reproducible ~1,000-peptide sample of the model's
+    own holdout split (never seen during its training), capped for practical external-tool
+    runtime. A positive delta means sAMPle is ahead on this holdout; overlapping 95% confidence
+    intervals mean the difference is not distinguishable from noise at this sample size.
+    "vs. chance" is the model's own y-randomization null from its training run (open the model's
+    row in the table above for the full record): a real signal, not just a win over one particular
+    tool.</p>
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Model</th><th>Reference tool</th><th class="text-end">n</th>
+                    <th class="text-end">sAMPle AUC</th><th class="text-end">95% CI</th>
+                    <th class="text-end">Reference AUC</th><th class="text-end">95% CI</th>
+                    <th class="text-end">&Delta; AUC</th><th class="text-end">vs. chance p</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in benchmarks %}
+                    {% for c in b.comparisons %}
+                    <tr>
+                        <td class="small">
+                            {% if loop.first %}<a href="/models/{{ b.model_id }}/dataset" class="font-monospace">{{ b.model_id }}</a>{% endif %}
+                        </td>
+                        <td class="small">{{ c.reference_tool }}</td>
+                        <td class="text-end">{{ c.n }}</td>
+                        <td class="text-end fw-bold">{% if c.model.roc_auc is not none %}{{ "%.3f"|format(c.model.roc_auc) }}{% else %}—{% endif %}</td>
+                        <td class="text-end">{% if c.model_ci95 and c.model_ci95.roc_auc %}[{{ "%.3f"|format(c.model_ci95.roc_auc[0]) }}, {{ "%.3f"|format(c.model_ci95.roc_auc[1]) }}]{% else %}—{% endif %}</td>
+                        {% if c.reference_available and c.reference %}
+                        <td class="text-end">{% if c.reference.roc_auc is not none %}{{ "%.3f"|format(c.reference.roc_auc) }}{% else %}—{% endif %}</td>
+                        <td class="text-end">{% if c.reference_ci95 and c.reference_ci95.roc_auc %}[{{ "%.3f"|format(c.reference_ci95.roc_auc[0]) }}, {{ "%.3f"|format(c.reference_ci95.roc_auc[1]) }}]{% else %}—{% endif %}</td>
+                        <td class="text-end {% if c.delta and c.delta.roc_auc and c.delta.roc_auc > 0 %}text-success{% elif c.delta and c.delta.roc_auc and c.delta.roc_auc < 0 %}text-danger{% endif %}">
+                            {% if c.delta and c.delta.roc_auc is not none %}{{ "%+.3f"|format(c.delta.roc_auc) }}{% else %}—{% endif %}
+                        </td>
+                        {% else %}
+                        <td class="text-end text-muted" colspan="3" title="This reference tool is not installed in the current environment.">not available</td>
+                        {% endif %}
+                        <td class="text-end small">
+                            {% if b.model_vs_chance and b.model_vs_chance.null_comparison %}{{ "%.3g"|format(b.model_vs_chance.null_comparison.primary_pvalue) }}{% else %}—{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<script>
+(function () {
+    const form = document.getElementById("predict-form");
+    if (!form) return;
+
+    const spinner = document.getElementById("predict-spinner");
+    const submit = document.getElementById("predict-submit");
+    const errorBox = document.getElementById("predict-error");
+    const queuedBox = document.getElementById("predict-queued");
+
+    form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        errorBox.classList.add("d-none");
+        queuedBox.classList.add("d-none");
+        spinner.classList.remove("d-none");
+        submit.disabled = true;
+
+        try {
+            const response = await fetch("/predict", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    model_id: document.getElementById("model_id").value,
+                    sequences: document.getElementById("peptides").value
+                })
+            });
+            const data = await response.json();
+
+            if (!response.ok) {
+                errorBox.textContent = data.error || "The job could not be queued.";
+                errorBox.classList.remove("d-none");
+                return;
+            }
+
+            document.getElementById("predict-job-id").textContent = data.job_id;
+            const link = document.getElementById("predict-job-link");
+            link.href = data.result_url;
+            queuedBox.classList.remove("d-none");
+            // Straight to the job page, where the spinner tracks actual progress. The id stays
+            // visible here for a moment first so it is readable even if the redirect is missed.
+            window.setTimeout(function () { window.location.href = data.result_url; }, 700);
+        } catch (e) {
+            errorBox.textContent = "Could not reach the server: " + e;
+            errorBox.classList.remove("d-none");
+        } finally {
+            spinner.classList.add("d-none");
+            submit.disabled = false;
+        }
+    });
+})();
+</script>
+{% endblock %}

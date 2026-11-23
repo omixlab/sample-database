@@ -1,0 +1,143 @@
+name: sample
+channels:
+  - conda-forge
+  - bioconda      # supplies `blast`; it is on no other channel, and without this line
+                  # `conda env create` fails outright with PackagesNotFoundError
+  - defaults
+
+# The FULL environment: every step in one place, and the union of every other file here.
+#
+# Two things need it and cannot use the split environments:
+#
+#   1. The documentation build. Sphinx autodoc imports every module in sample/ to read its
+#      signatures and docstrings, so `make docs` needs the union of all dependencies -- including
+#      celery and flask, which only the webserver otherwise uses. A narrower environment produces
+#      a build full of import-failure stubs rather than an error, which is worse.
+#
+#   2. Anyone who would rather maintain one environment than six. `make all SINGLE_ENV=sample`
+#      runs the entire pipeline here.
+#
+# For normal per-step runs, prefer the split environments -- they are much faster to create and
+# keep an unrelated dependency change from touching a step that does not use it. This file must
+# stay a superset of them; `make check-envs` verifies that it is.
+#
+# Kept in step with pyproject.toml, which is itself audited against what the code actually
+# imports. Conda supplies the non-Python system pieces (poppler for pdf2image-style rendering,
+# BLAST for sequence search, make for the pipeline driver); everything else installs from pip so
+# that this file and pyproject.toml cannot drift into naming different versions of the same
+# package.
+dependencies:
+  - python=3.11
+  - pip
+  - poppler
+  # OCR for image-only and scanned PDFs, same reasoning as the dssp entry below: the Dockerfile
+  # builds THIS file, pytesseract shells out to `tesseract` by bare name, and a missing binary
+  # surfaces only at the first OCR call rather than at build time.
+  - tesseract
+  - blast
+  - dssp           # `mkdssp`, for the peptide page's DSSP secondary-structure track
+                   # (sample.structure_analysis). Declared in sample-web.yml but NOT here,
+                   # and the Dockerfile builds THIS file -- so every containerised
+                   # deployment silently served a peptide page whose DSSP track was empty
+                   # while Ramachandran and pLDDT disorder, which need no external binary,
+                   # rendered fine. An absent binary degrades to None by design, which is
+                   # why nothing ever errored.
+  - make
+  - pip:
+      # Core data handling
+      - pandas
+      # Reads the .xlsx source files: dbAMP's dbAMP3_pepinfo and the curated Clostridium /
+      # Leishmania sheets. pandas needs it explicitly -- without it read_excel raises and the
+      # caller degrades to zero rows, which is how dbAMP silently contributed no names at all.
+      - openpyxl
+      # Pinned <2 to match sample-extraction, which cannot go higher: its spacy 3.7.5 /
+      # thinc / blis stack requires numpy 1.x. The pin has to be shared because pickles cross
+      # that boundary -- step 8 writes rf_filter_model.pkl here and step 7 loads it in
+      # sample-extraction -- and NumPy 2 changed the array pickle format. `make check-envs`
+      # asserts the installed versions actually agree.
+      - numpy<2
+      - scipy
+      - pyarrow
+      - biopython
+      # Top500 Ramachandran reference tables (Lovell et al. 2003) for
+      # sample/structure_analysis.py -- read as DATA FILES via importlib.metadata; the
+      # package is never imported (its __init__ pulls in matplotlib.pyplot, which has no
+      # place in a request path). Declares no licence, knowingly accepted -- see DECISIONS.md.
+      - pyrama
+      # Contour extraction over those tables. A matplotlib dependency, but imported
+      # directly by this project, so declared directly rather than assumed.
+      - contourpy
+      - python-dateutil
+      - python-dotenv
+
+      # Text mining and NLP
+      - pyahocorasick
+      # sample/models.py imports this at module level; it was installed only as a transitive
+      # dependency and declared nowhere, so the entity layer could not be imported in any
+      # environment that did not happen to pull it in.
+      - sqlalchemy>=2.0
+      - spacy
+      - nltk
+      - sentence-transformers
+      # --- PyTorch, pinned to a CUDA 12.1 build ---
+      # The default PyPI wheel is built for CUDA 13. This machine's driver (535.x) tops out at
+      # CUDA 12.2, so that wheel installs ~5 GB of CUDA libraries and then reports
+      # torch.cuda.is_available() == False -- every embedding pass silently falls back to CPU.
+      # cu121 wheels work with driver >= 525 and light up the GPU for the ESM-2 pass.
+      # Verified on an RTX 3060: torch.cuda.is_available() True, ESM-2 runs on `cuda`.
+      - --extra-index-url https://download.pytorch.org/whl/cu121
+      - torch==2.5.1+cu121
+      - transformers
+
+      # Cheminformatics
+      - rdkit
+      # sample/peptide_predictors.py -- the 111-descriptor block. Pure Python, no native
+      # dependency, so unlike the external predictors it installs here without conflict.
+      - peptides
+
+      # PDF and web scraping
+      - PyMuPDF
+      - pdfplumber
+      - pytesseract          # thin wrapper over the `tesseract` binary declared above
+      # NOT listed: fibrum-pdf. sample/nlp.py imported `to_json` from it and never called it --
+      # a leftover of a layout-parsing path that was removed. The import is gone; do not add the
+      # package back without a call site.
+      - beautifulsoup4
+      - requests
+      - urllib3
+      - selenium
+      - selenium-stealth
+      - webdriver-manager
+
+      # LLM backends
+      - ollama
+      - google-genai
+      - json-repair
+
+      # Validation and schema
+      - jsonschema
+
+      # Machine learning and analysis
+      # Pinned to match sample-ml.yml and sample-web.yml. A model trained here must unpickle
+      # in the webserver environment, and vice versa; see the note in sample-ml.yml.
+      - scikit-learn==1.9.0
+      - xgboost==3.2.0   # sample/ml_models.py -- the base estimator for every trained model
+      - joblib
+      - matplotlib
+      - seaborn
+      - umap-learn
+
+      # Web dashboard, JSON API and background prediction jobs
+      - fastapi
+      - uvicorn[standard]  # ASGI server used by the docker-compose `web` service
+      - pydantic
+      - jinja2           # dashboard templates, rendered through Starlette
+      - celery           # sample/tasks.py -- background prediction worker
+      - redis            # Celery broker/result-backend client
+      - tqdm
+
+      # Documentation build (docs/) -- HTML and PDF
+      - sphinx
+      - sphinx-rtd-theme
+      - sphinx-autodoc-typehints
+      - rst2pdf

@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card p-4 mb-4">
+    <h1 class="display-6 fw-bold mb-2"><span class="text-gradient">Model dataset</span></h1>
+    <p class="text-muted mb-2 font-monospace small">{{ model_id }}</p>
+    <p class="text-muted mb-0">{{ entry.label }}. Full validation report and the exact peptides used
+    for training versus the holdout set, so the numbers on the
+    <a href="/models">models page</a> can be checked rather than taken on faith.</p>
+</div>
+
+{% if not dataset %}
+<div class="card p-4">
+    <div class="text-center py-4 text-muted border border-secondary border-dashed rounded bg-body-tertiary">
+        <p class="mb-0">No dataset record for this model. Legacy pre-namespace models, and releases
+        built before steps 45-46 started writing this file, have no train/test split to show.</p>
+    </div>
+</div>
+{% else %}
+
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card p-4 h-100">
+            <h2 class="h5 fw-bold mb-3">Sample composition</h2>
+            <table class="table table-sm mb-0">
+                <tbody>
+                    <tr><td class="text-muted">Total peptides</td><td class="text-end fw-bold">{{ "{:,}".format(dataset.n_samples) }}</td></tr>
+                    {% if dataset.n_positives is not none %}
+                    <tr><td class="text-muted">Positives / negatives</td><td class="text-end">{{ "{:,}".format(dataset.n_positives) }} / {{ "{:,}".format(dataset.n_negatives) }}</td></tr>
+                    {% endif %}
+                    <tr><td class="text-muted">Training / selection portion</td><td class="text-end fw-bold">{{ "{:,}".format(dataset.n_train) }}</td></tr>
+                    <tr><td class="text-muted">Holdout (final word)</td><td class="text-end fw-bold">{{ "{:,}".format(dataset.n_test) }}</td></tr>
+                    <tr><td class="text-muted">Learning task</td><td class="text-end">{{ dataset.learning_task }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card p-4 h-100">
+            <h2 class="h5 fw-bold mb-3">Quality gate</h2>
+            {% if dataset.quality_passed %}
+            <span class="badge bg-success mb-3">Passed — published for prediction</span>
+            {% else %}
+            <span class="badge bg-danger mb-3">Failed — not published</span>
+            {% endif %}
+            {% if dataset.quality_failures %}
+            <ul class="small text-muted mb-0">
+                {% for reason in dataset.quality_failures %}<li>{{ reason }}</li>{% endfor %}
+            </ul>
+            {% else %}
+            <p class="small text-muted mb-0">No thresholds failed.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card p-4 mb-4">
+    <h2 class="h5 fw-bold mb-3">Validation metrics</h2>
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Metric</th><th class="text-end">Holdout (final word)</th>
+                    <th class="text-end">95% CI</th><th class="text-end">y-randomized</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for metric, value in dataset.holdout.items() %}
+                <tr>
+                    <td class="small">{{ metric }}</td>
+                    <td class="text-end fw-bold">{{ "%.4f"|format(value) }}</td>
+                    <td class="text-end small text-muted">
+                        {% if dataset.holdout_ci95[metric] %}[{{ "%.3f"|format(dataset.holdout_ci95[metric][0]) }}, {{ "%.3f"|format(dataset.holdout_ci95[metric][1]) }}]{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if metric == primary_metric %}{{ "%.4f"|format(dataset.y_randomization["mean_" + primary_metric]) }}{% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="small text-muted mb-0">Holdout is scored on peptides never touched during training —
+    the final word, on a single grouped train/holdout split (no cross-validation: hyperparameters
+    are fixed, not selected). y-randomization refits on shuffled training labels and scores on the
+    same holdout rows; a sound model's shuffled-label score should sit near chance.</p>
+</div>
+
+<div class="card p-4 mb-4">
+    <h2 class="h5 fw-bold mb-3">Real vs. y-randomized null — significance</h2>
+    <p class="small text-muted">For each metric, a Shapiro-Wilk normality test runs on the real
+    (bootstrap) and null (y-randomization) distributions first; the p-value used to decide
+    significance is Welch's t-test only when <em>both</em> distributions are not shown non-normal,
+    otherwise Kruskal-Wallis — the assumption-free test is trusted whenever normality does not
+    clearly hold.</p>
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Metric</th><th class="text-end">Real mean</th><th class="text-end">Null mean</th>
+                    <th>Real normal?</th><th>Null normal?</th>
+                    <th>Test used</th><th class="text-end">p-value</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for metric, cmp in dataset.null_comparison.items() %}
+                <tr>
+                    <td class="small">{{ metric }}</td>
+                    <td class="text-end">{{ "%.4f"|format(cmp.real_mean) }}</td>
+                    <td class="text-end text-muted">{{ "%.4f"|format(cmp.null_mean) }}</td>
+                    <td>
+                        {% if cmp.real_normality.is_normal %}<span class="badge bg-secondary">normal (p={{ "%.3g"|format(cmp.real_normality.pvalue) }})</span>
+                        {% else %}<span class="badge bg-secondary">non-normal (p={{ "%.3g"|format(cmp.real_normality.pvalue) }})</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if cmp.null_normality.is_normal %}<span class="badge bg-secondary">normal (p={{ "%.3g"|format(cmp.null_normality.pvalue) }})</span>
+                        {% else %}<span class="badge bg-secondary">non-normal (p={{ "%.3g"|format(cmp.null_normality.pvalue) }})</span>{% endif %}
+                    </td>
+                    <td class="small">{{ "Welch's t-test" if cmp.primary_test == "t_test" else "Kruskal-Wallis" }}</td>
+                    <td class="text-end fw-bold {% if cmp.primary_pvalue < 0.05 %}text-success{% else %}text-danger{% endif %}">{{ "%.3g"|format(cmp.primary_pvalue) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="small text-muted mb-0">t-test and Kruskal-Wallis are both computed on every metric;
+    only the test the normality check selected gates publication (p &lt; 0.05 required). Raw
+    statistics for both tests are in the <a href="/api/v1/models/{{ model_id }}/dataset">JSON
+    record</a>.</p>
+</div>
+
+<div class="card p-4 mb-4">
+    <h2 class="h5 fw-bold mb-3">Applicability domain</h2>
+    <p class="small text-muted">A query peptide is IN this model's domain when its mean distance to
+    its <code>k</code> nearest training peptides (in the standardized feature space) does not exceed
+    the threshold below. A peptide outside the domain can still be scored, but the prediction results
+    page warns that the model has not been shown to generalize to it.</p>
+    <table class="table table-sm mb-0">
+        <tbody>
+            <tr><td class="text-muted">Neighbours (k)</td><td class="text-end">{{ dataset.applicability_domain.k }}</td></tr>
+            <tr><td class="text-muted">Distance threshold</td><td class="text-end">{{ "%.4f"|format(dataset.applicability_domain.threshold) }}</td></tr>
+            <tr><td class="text-muted">Training mean / std distance</td><td class="text-end">{{ "%.4f"|format(dataset.applicability_domain.training_mean_distance) }} / {{ "%.4f"|format(dataset.applicability_domain.training_std_distance) }}</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="card p-4">
+    <h2 class="h5 fw-bold mb-3">Training and test peptides</h2>
+    <p class="small text-muted">
+        {{ "{:,}".format(dataset.n_train) }} peptide{{ '' if dataset.n_train == 1 else 's' }} in
+        training/selection, {{ "{:,}".format(dataset.n_test) }} in the holdout set. Peptides are
+        grouped by near-identity cluster before splitting, so no analogue of a held-out peptide
+        leaked into training.
+        <a href="/models/{{ model_id }}/dataset/download" class="btn btn-sm btn-gradient px-3 ms-2">Download full split (CSV)</a>
+        <a href="/models/{{ model_id }}/dataset/holdout.fasta" class="btn btn-sm btn-outline-secondary px-3 ms-1">Download holdout (FASTA)</a>
+    </p>
+    <p class="small text-muted mb-0">The FASTA is exactly the peptides this model's own step-45
+    benchmark scores it and its reference tool against — a reproducible ~1,000-peptide sample of
+    the holdout above, not necessarily all of it, capped for practical external-tool runtime — the
+    same file to hand to a tool this project has no wrapper for, so a comparison stays
+    apples-to-apples.</p>
+    <div class="row g-4 mt-1">
+        <div class="col-md-6">
+            <h3 class="h6 fw-bold text-muted">Training set (first 50)</h3>
+            <div class="font-monospace small" style="max-height: 240px; overflow-y: auto;">
+                {% for entry_id in dataset.train_entry_ids[:50] %}<a href="/search/peptide/{{ entry_id }}" class="d-block text-decoration-none">{{ entry_id }}</a>{% endfor %}
+                {% if dataset.n_train > 50 %}<span class="text-muted">… {{ "{:,}".format(dataset.n_train - 50) }} more, see the CSV download</span>{% endif %}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <h3 class="h6 fw-bold text-muted">Holdout set (first 50)</h3>
+            <div class="font-monospace small" style="max-height: 240px; overflow-y: auto;">
+                {% for entry_id in dataset.test_entry_ids[:50] %}<a href="/search/peptide/{{ entry_id }}" class="d-block text-decoration-none">{{ entry_id }}</a>{% endfor %}
+                {% if dataset.n_test > 50 %}<span class="text-muted">… {{ "{:,}".format(dataset.n_test - 50) }} more, see the CSV download</span>{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card p-4">
+    <h1 class="display-6 fw-bold mb-3"><span class="text-gradient">Source Peptide Databases</span></h1>
+    <p class="text-muted mb-4">The sAMPle platform queries, structures, and compiles datasets from five major external structural peptide databases:</p>
+    
+    <div class="row g-3">
+        {% for db in dbs %}
+        <div class="col-md-12">
+            <div class="card bg-body-tertiary border-secondary-subtle p-3 d-flex flex-row justify-content-between align-items-center flex-wrap gap-3">
+                <div style="flex: 1; min-width: 250px;">
+                    <h3 class="h5 fw-bold mb-1">{{ db.name }}</h3>
+                    <p class="mb-0 text-muted small">{{ db.desc }}</p>
+                </div>
+                <a href="{{ db.url }}" target="_blank" class="btn btn-sm btn-gradient px-4">Visit Database &rarr;</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

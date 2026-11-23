@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% if not job %}
+<div class="card p-5 text-center">
+    <h1 class="h4 fw-bold mb-3">Job not found</h1>
+    <p class="text-muted mb-4">No prediction job is recorded under
+       <code class="font-monospace">{{ job_id }}</code>.</p>
+    <div><a href="/models" class="btn btn-gradient px-4">Back to models</a></div>
+</div>
+{% else %}
+
+<div class="card p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <h1 class="h4 fw-bold mb-1">Prediction job</h1>
+            <p class="text-muted mb-0 font-monospace small" id="job-id">{{ job.job_id }}</p>
+        </div>
+        <div class="text-end">
+            <span id="job-status-badge" class="badge fs-6
+                {% if job.status == 'SUCCESS' %}bg-success{% elif job.status == 'FAILURE' %}bg-danger{% elif job.status == 'RUNNING' %}bg-primary{% else %}bg-secondary{% endif %}">
+                {{ job.status }}
+            </span>
+        </div>
+    </div>
+
+    <hr class="my-3">
+
+    <div class="row g-3 small">
+        <div class="col-md-6">
+            <span class="text-muted text-uppercase fw-bold d-block">Model</span>
+            <span class="font-monospace">{{ job.model_id }}</span>
+            {% if model %}<div class="text-muted">{{ model.label }}</div>{% endif %}
+        </div>
+        <div class="col-md-3">
+            <span class="text-muted text-uppercase fw-bold d-block">Peptides</span>
+            <span>{{ job.n_peptides }}</span>
+        </div>
+        <div class="col-md-3">
+            <span class="text-muted text-uppercase fw-bold d-block">Completed</span>
+            <span id="job-completed">{{ job.n_completed }}</span> / {{ job.n_peptides }}
+        </div>
+    </div>
+</div>
+
+<!-- Shown while the job is queued or running; the poller hides it on a terminal state. -->
+<div id="job-running" class="card p-5 text-center {% if job.status in ('SUCCESS', 'FAILURE') %}d-none{% endif %}">
+    <div class="d-flex flex-column align-items-center gap-3">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">Running…</span>
+        </div>
+        <div>
+            <p class="fw-bold mb-1" id="job-running-text">Scoring {{ job.n_peptides }} peptide{{ '' if job.n_peptides == 1 else 's' }}…</p>
+            <p class="text-muted small mb-0">
+                This page updates itself. The job id is
+                <code class="font-monospace">{{ job.job_id }}</code> — you can close this tab and
+                return to <code>/predict/{{ job.job_id }}</code> later.
+            </p>
+        </div>
+    </div>
+</div>
+
+<div id="job-failed" class="card p-4 border-danger {% if job.status != 'FAILURE' %}d-none{% endif %}">
+    <h2 class="h6 fw-bold text-danger mb-2">The job failed</h2>
+    <pre class="mb-0 small text-muted" id="job-error">{{ job.error or '' }}</pre>
+</div>
+
+<div id="job-results" class="card p-4 {% if job.status != 'SUCCESS' %}d-none{% endif %}">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 fw-bold mb-0">Results</h2>
+        <a href="/predict/{{ job.job_id }}/json" class="btn btn-sm btn-outline-secondary">Download JSON</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>#</th><th>Peptide</th><th>Sequence</th>
+                    <th class="text-end">Probability</th><th>Prediction</th><th>Domain</th>
+                </tr>
+            </thead>
+            <tbody id="results-body">
+                {% for r in results %}
+                <tr>
+                    <td class="text-muted small">{{ r.position + 1 }}</td>
+                    <td>{{ r.peptide_name }}</td>
+                    <td class="font-monospace small text-break">{{ r.sequence }}</td>
+                    <td class="text-end fw-bold">
+                        {% if r.error %}<span class="text-danger small">—</span>
+                        {% elif r.probability is not none %}{{ "%.3f"|format(r.probability) }}
+                        {% elif r.value is not none %}{{ "%.3f"|format(r.value) }}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if r.error %}<span class="badge bg-danger-subtle text-danger">{{ r.error }}</span>
+                        {% elif r.predicted_label == 'active' %}<span class="badge bg-success">Active</span>
+                        {% elif r.predicted_label == 'inactive' %}<span class="badge bg-secondary">Inactive</span>
+                        {% else %}<span class="text-muted small">value</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if r.error %}<span class="text-muted small">—</span>
+                        {% elif r.in_domain == false %}
+                        <span class="badge bg-warning text-dark" title="This peptide's features lie outside the model's training distribution (standardized k-NN distance). The prediction above is still the model's real output, but it has not been shown to generalize this far from what the model was trained on.">⚠ Outside domain</span>
+                        {% elif r.in_domain == true %}
+                        <span class="badge bg-success-subtle text-success-emphasis">In domain</span>
+                        {% else %}<span class="text-muted small">—</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+(function () {
+    const jobId = {{ job.job_id | tojson }};
+    const done = {{ (job.status in ('SUCCESS', 'FAILURE')) | tojson }};
+    if (done) return;
+
+    const badge = document.getElementById("job-status-badge");
+    const running = document.getElementById("job-running");
+    const failed = document.getElementById("job-failed");
+    const results = document.getElementById("job-results");
+    const completed = document.getElementById("job-completed");
+
+    // Backs off from 1s towards 5s. A short first interval makes a fast job feel immediate; the
+    // ceiling keeps a long job from generating hundreds of requests while the user waits.
+    let delay = 1000;
+    const maxDelay = 5000;
+
+    async function poll() {
+        try {
+            const response = await fetch("/predict/status/" + jobId, {cache: "no-store"});
+            if (!response.ok) { return; }
+            const data = await response.json();
+
+            completed.textContent = data.n_completed;
+            badge.textContent = data.status;
+            badge.className = "badge fs-6 " + (
+                data.status === "SUCCESS" ? "bg-success" :
+                data.status === "FAILURE" ? "bg-danger" :
+                data.status === "RUNNING" ? "bg-primary" : "bg-secondary");
+
+            if (data.done) {
+                running.classList.add("d-none");
+                if (data.status === "FAILURE") {
+                    document.getElementById("job-error").textContent = data.error || "Unknown error.";
+                    failed.classList.remove("d-none");
+                } else {
+                    // Reload once so the table renders server-side, keeping one source of truth
+                    // for the row markup instead of duplicating it in JavaScript.
+                    window.location.reload();
+                }
+                return;
+            }
+        } catch (e) {
+            // Transient failure (worker restart, brief network drop): keep polling.
+        }
+        delay = Math.min(delay * 1.4, maxDelay);
+        window.setTimeout(poll, delay);
+    }
+
+    window.setTimeout(poll, delay);
+})();
+</script>
+
+{% endif %}
+{% endblock %}
