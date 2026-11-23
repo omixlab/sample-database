@@ -228,7 +228,7 @@ ALL_ENVS = $(ENV_ACQUISITION) $(ENV_EXTRACTION) $(ENV_CHEM) $(ENV_ML) $(ENV_WEB)
         sources-status curation-model-check \
         envs env-acquisition env-extraction env-chem env-ml env-web env-predictors env-fold env-full \
         env-langextract \
-        env-expression env-macrel env-amplify env-anticp2 env-ampidentifier env-ampeppy env-toxinpred3 env-toxinpred2 env-algpred2 env-mpepe \
+        env-macrel env-amplify env-anticp2 env-ampidentifier env-ampeppy env-toxinpred3 env-toxinpred2 env-algpred2 \
         check-envs compose-up compose-down compose-logs docs docs-pdf docs-clean \
          \
         step_01_download_pubmed_papers_metadata step_02_download_scopus_papers_metadata \
@@ -447,12 +447,6 @@ env-langextract:
 env-fold:
 	$(call sync_env,$(NAME_FOLD),environments/sample-fold.yml)
 
-# ViennaRNA for the Expression Wizard's 5' mRNA structure check. A tool environment holding only
-# ViennaRNA: sample/expression.py runs from the web environment and shells out to this one's
-# RNAfold binary, and falls back to a GC/stem heuristic when it is absent.
-env-expression:
-	$(call sync_env,sample-expression,environments/sample-expression.yml)
-
 # Macrel for the annotator, in its own environment (it pins its own scikit-learn/numpy and cannot
 # share sample-predictors without a pin fight). sample/peptide_predictors.py shells out to it.
 env-macrel:
@@ -478,7 +472,7 @@ env-ampidentifier:
 # Unlike a plain sync_env, amPEPpy is not on PyPI/bioconda (the yml's pip section installs it
 # straight from its git repo) and its own pretrained model is not part of that pip install at all
 # (setup.py ships no package_data) -- so this also clones the tool's repo into data/ampeppy/ purely
-# to reach pretrained_models/amPEP.model, the same convention env-mpepe uses for its own weights.
+# to reach pretrained_models/amPEP.model, the same convention uses for its own weights.
 env-ampeppy:
 	$(call sync_env,sample-ampeppy,environments/sample-ampeppy.yml)
 	@if [ ! -f data/ampeppy/pretrained_models/amPEP.model ]; then \
@@ -500,25 +494,6 @@ env-toxinpred2:
 
 env-algpred2:
 	$(call sync_env,sample-algpred2,environments/sample-algpred2.yml)
-
-# MPEPE for the Expression Wizard's learned yield estimate. Unlike the other predictor envs, a
-# plain `conda env create` is not enough -- see environments/sample-mpepe.yml for why each of
-# these three steps is needed (a broken python=2.7 pip, undeclared pandas dependency, and the
-# model repo itself, which is not on any package index).
-env-mpepe:
-	$(call sync_env,sample-mpepe,environments/sample-mpepe.yml)
-	@echo "=== sample-mpepe: bootstrapping pip (conda-forge's python=2.7 pip is broken) ==="
-	curl -sL https://bootstrap.pypa.io/pip/2.7/get-pip.py -o /tmp/sample-mpepe-get-pip.py
-	conda run -n sample-mpepe python /tmp/sample-mpepe-get-pip.py
-	@rm -f /tmp/sample-mpepe-get-pip.py
-	@echo "=== sample-mpepe: installing MPEPE's pinned TensorFlow/Keras/Theano (+ pandas, undeclared in its README) ==="
-	conda run -n sample-mpepe pip install "tensorflow==1.15.0" "keras==2.1.5" "theano==1.0.5" pandas
-	@echo "=== sample-mpepe: fetching MPEPE's own repo (code + ~130MB pretrained weights) into data/mpepe ==="
-	@if [ ! -f data/mpepe/MPEPE_pred.codonc4.py ]; then \
-	    git clone --depth 1 https://github.com/BRITian/MPEPE.git data/mpepe; \
-	else \
-	    echo "data/mpepe already present, skipping clone"; \
-	fi
 
 # The full environment. Needed for `make docs` (Sphinx autodoc imports every module) and for
 # `make all SINGLE_ENV=sample`.
