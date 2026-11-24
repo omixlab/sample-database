@@ -3,11 +3,11 @@
 > ### This is a source-only repository
 >
 > It carries the code, the `Makefile`, the environment specifications, the tests and the
-> documentation — 6 MB in total. It deliberately does **not** carry:
+> documentation — 15 MB in total. It deliberately does **not** carry:
 >
 > | not here | why | how to get it |
 > |---|---|---|
-> | `data/` (~127 GB) | downloaded corpora, extraction JSON, trained models, release artifacts | `make all`, or the Zenodo archive; layout in [`data/README.md`](data/README.md) |
+> | `data/` (~134 GB) | downloaded corpora, extraction JSON, trained models, release artifacts | `make all`, or the Zenodo archive; layout in [`data/README.md`](data/README.md) |
 > | `paper/figures/`, the rendered PDF | regenerated from the release data | `python paper/generate_dataset_report.py`, then `paper/build_pdf.py` |
 > | `docs/_build/` | Sphinx output | `make docs` |
 > | EDA figures under `sample/static/img/` | written by the exploratory-analysis step; the analytics page shows gaps until then | `make all START_STEP=50 END_STEP=50` |
@@ -63,8 +63,9 @@ carries exactly its dependencies.
 6. **Families & search** — Pfam anchoring (`hmmsearch` at gathering threshold) then PepMatch
    near-identity clustering of the remainder; profile HMMs per cluster; and four search modes on the
    dashboard: BLAST, HMMER, PepMatch near-identity, and ESM-2 embedding k-NN.
-7. **Rigorous ML** — a per-task, per-feature-block model matrix (XGBoost with a RandomForest
-   fallback) with clustering-based train/test splits to prevent analogue leakage, a normality test
+7. **Rigorous ML** — **19 served models**: one general antibacterial classifier plus 18
+   pathogen-specific MIC/MBC endpoints, FLAML-searched XGBoost trained by steps 47–48, with
+   clustering-based train/test splits to prevent analogue leakage, a normality test
    gating Welch's t-test vs Kruskal-Wallis, y-randomization, bootstrap CIs, and separate
    classification/regression quality gates. Every model exposes a **dataset** page with its full
    validation report and train/test peptide split, and a k-NN **applicability-domain** warning at
@@ -288,14 +289,14 @@ The commands, grouped by pipeline phase (the source of truth for flags is always
 | Phase | Commands |
 |---|---|
 | **Acquisition (1–6)** | `pubmed`, `scopus`, `download-pdfs`, `google-patents`, `databases`, `import-anticancer` |
-| **Extraction & merge (7–19)** | `merge`, `extract`, `extract-from-pdf`, `revalidate-resolutions`, `train-rf-filter`, `external-enrich`, `validate`, `validate-error-injection`, `select-curation-set`, `revise`, `extract-repair`, `merge-extractions` |
-| **Serialize, enrich, assemble (20–32)** | `serialize`, `enrich-base`, `enrich-macrel` / `enrich-anticp2` / `enrich-hemopi2` / `enrich-algpred2` (AMPlify retired 2026-08-26), `enrich-frequency-embeddings`, `fold` + `enrich-structures-fallback` (or the monolithic `enrich`, `enrich-esm2`, `enrich-descriptors`), `decoys`, `assembly`, `update-dataset`, `validate-smiles`, `build-embedding-index` |
-| **Harvest & annotate (33–42)** | `build-names`, `build-references`, `build-families`, `build-family-hmms`, `link-bioactivity`, `build-modifications`, `build-source-organisms`, `build-cross-references`, `build-gene-ontology`, `build-go-obo` |
-| **Load & model (43–49)** | `load-sql`, `anomaly-detection`, `train-antibacterial-ml-model`, `train-organism-specific-ml-models` (both FLAML-searched XGBoost, 600s budget, holdout + cross-validation + y-randomization), `benchmark-all`, `eda`, `compare-chemical-spaces` |
+| **Extraction & merge (7–21)** | `merge`, `extract`, `extract-from-pdf`, `revalidate-resolutions`, `train-rf-filter`, `external-enrich`, `validate`, `validate-error-injection`, `select-curation-set`, `revise`, `extract-repair`, `merge-extractions` |
+| **Serialize, enrich, assemble (22–34)** | `serialize`, `enrich-base`, `enrich-macrel` / `enrich-anticp2` / `enrich-hemopi2` / `enrich-algpred2` (AMPlify retired 2026-08-26), `enrich-frequency-embeddings`, `fold` + `enrich-structures-fallback` (or the monolithic `enrich`, `enrich-esm2`, `enrich-descriptors`), `decoys`, `assembly`, `update-dataset`, `validate-smiles`, `build-embedding-index` |
+| **Harvest & annotate (35–44)** | `build-names`, `build-references`, `build-families`, `build-family-hmms`, `link-bioactivity`, `build-modifications`, `build-source-organisms`, `build-cross-references`, `build-gene-ontology`, `build-go-obo` |
+| **Load & model (45–51)** | `load-sql`, `anomaly-detection`, `train-antibacterial-ml-model`, `train-organism-specific-ml-models` (both FLAML-searched XGBoost, 600s budget, holdout + cross-validation + y-randomization), `benchmark-all`, `eda`, `compare-chemical-spaces` |
 | **Structure & design** | `fold`, `express`, `admet` (sequence-only ADMET-lite profile) |
-| **Sources & annotation (outside `make all`)** | `import-cycpeptmpdb` (index ~8,500 cyclic peptides, with structural linking to release entries), `build-annotations` (pre-compute the five external predictors + Pfam/family/near-identity/HMM hits per peptide) |
+| **Sources & annotation (outside `make all`)** | `import-cycpeptmpdb` (index ~8,500 cyclic peptides, with structural linking to release entries), `build-annotations` (pre-compute the four external predictors + Pfam/family/near-identity/HMM hits per peptide) |
 | **Analysis & maintenance (outside `make all`)** | `update-families` (place new peptides into the existing family map), `incremental-update` (diff a fresh acquisition run against the live release, then place what is new), `train-ml` (the full per-task/per-block matrix, fixed-hyperparameter XGBoost by default or FLAML-searched with the default omitted -- see `--fixed-hyperparameters`), `train-synergy` (peptide-antibiotic synergy, out of scope for the numbered pipeline), `validate-ml`, `benchmark` (a model vs a reference tool on one holdout; `benchmark-all` runs every model with a registered reference tool and is step 49), `build-topology` (cyclic/disulfide topology), `enrich-macrel` / `enrich-anticp2` / `enrich-hemopi2` / `enrich-algpred2` (`make tool-enrich-<name>`: re-run ONE external predictor over the already-enriched dataset, filling in only the peptides missing its result -- not descriptors, not any other predictor, not a full steps-21-27 enrichment re-run; these are also steps 24-27 in the numbered pipeline, `ALL=1` forces a full recompute; AMPlify had the same command until it was retired 2026-08-26), `extract-tables` |
-| **Serve & admin (51)** | `webserver`, `admin {create,passwd,list,remove,enable,disable}` |
+| **Serve & admin, release (53–54)** | `webserver`, `admin {create,passwd,list,remove,enable,disable}`, `generate-zenodo-dump` |
 
 > `validate-manual-curation` remains as a deprecated alias for `revise`. The command it used to run
 > stamped records as expert-curated without anyone having seen them, and its output was read by no
@@ -398,6 +399,17 @@ sample-cli generate-zenodo-dump --bump patch --dry-run   # report, write nothing
 The archive **mirrors** the release rather than copying into it: anything no longer part of the
 project is removed, bytecode is never archived, and `models_retired/` is excluded unless
 `--include-retired` is passed. `--dry-run` lists what would leave the archive before it does.
+
+The current archive is **v1.0.0** (built 2026-11-24). Its `MANIFEST.json` records thirteen
+top-level entries totalling **105,043 files and 12.53 GB**, published as the 7.20 GB
+`data/zenodo_dump-v1.0.0.tar.gz` with a `.sha256` beside it; the two largest entries are
+`sample_final_release` (8.50 GB) and `sample_enriched_release` (104,540 files, 2.84 GB). The
+manifest also carries the version, the exclusion patterns, a per-entry file and byte count, and
+every path removed as stale on that build — 208 of them on this one, including the 28 `step_*.sh`
+wrappers for a pipeline that no longer exists. Those per-entry counts are the figures to quote,
+and `MANIFEST.json` is what to diff the unpacked archive against. Because the build mirrors, an archived copy of a
+retired model or a superseded driver script is indistinguishable, to someone whose only copy is the
+archive, from a supported one; that is why `models_retired/` stays out by default.
 
 The pipeline is scoped to antimicrobial (antibacterial) peptide prediction, by instruction -- the
 one case study while the FLAML-searched training path is proved out. `train-ml` (the full
@@ -941,14 +953,14 @@ The endpoints also serve scripted callers:
 
 ```bash
 curl -X POST localhost:8000/predict -H 'Content-Type: application/json' \
-     -d '{"model_id": "general/general/any/classification/descriptors",
+     -d '{"model_id": "antibacterial/general/any/classification/flaml",
           "peptides": ["GIGKFLHSAKKFGKAFVGEIMNS", "ILPWKWPWWPWRR"]}'
 curl localhost:8000/predict/<job_id>/json
 ```
 
 ### Dashboard features
 
-* **ML Models** — browse the models the FLAML rollout (steps 45–46) actually published: a model is
+* **ML Models** — browse the **19** models the FLAML rollout (steps 47–48) actually published: a model is
   offered only when its namespace cleared the quality gate *and* the run recorded it as written, so
   a rollout that died part-way leaves no half-trained, unthresholded model selectable. Each model
   links to a **dataset** page showing
