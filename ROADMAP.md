@@ -10,13 +10,6 @@ priority. `KNOWN_ISSUES.md` records what specifically blocks each gated item.
 Everything else in this milestone is built, tested and wired; each remaining item is a deliberate,
 explicitly gated run rather than more code:
 
-- **RefSeq genomic context** — the resumable, database-backed sweep (`genomic-context-sweep`) and
-  the peptide-page sunburst are both built. What remains is running the sweep itself (large
-  downloads → disk/time) — reserved for a deliberate, user-triggered run.
-- **Pre-computed per-peptide annotation** — `sample.peptide_annotations` / `build-annotations`
-  assembles all five working predictors, Pfam/family, near-identity hits and family-HMM hits per
-  peptide, with explicit circular-peptide handling. What remains is running the batch over the full
-  ~34k-peptide corpus — reserved the same way.
 - **Incremental update** — `sample.acquisition` / `incremental-update` chains the acquisition steps
   and places new peptides via the existing family-assignment step. Built and tested; the actual
   paper-fetching run is, again, a deliberate run rather than code left to write.

@@ -169,32 +169,6 @@ class TestHtmlParity:
         assert "ADMET-lite profile" in body
         assert "membrane permeability" in body
 
-    def test_detail_page_shows_genomic_context_when_a_result_exists(
-            self, client: Any, tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
-        # A genomic-context sweep records hits in the store keyed by entry_id; when present the
-        # peptide page rebuilds and renders the Krona-style sunburst from them.
-        from sample import genomic_context_store as store
-        from sample.genomic_context import Hit
-
-        db = str(tmp_path / "gctx.sqlite")
-        monkeypatch.setenv("SAMPLE_GENOMIC_CONTEXT_DB", db)
-        store.init_db(db)
-        store.record_genome("SAMPLE0000000001", "GCF_000001", [
-            Hit(peptide_id="SAMPLE0000000001", contig="c1", identity=0.98, coverage=0.99,
-                evalue=1e-9, bitscore=120.0, sstart=10, send=40, genome_accession="GCF_000001",
-                taxid="562", organism="Escherichia coli")], db_path=db)
-
-        body = client.get("/search/peptide/SAMPLE0000000001").text
-        assert "Genomic context" in body
-        assert "<svg" in body
-
-    def test_detail_page_omits_genomic_context_without_a_result(
-            self, client: Any, tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
-        # No sweep result -> the panel is absent (not an error), like the structure panel.
-        monkeypatch.setenv("SAMPLE_GENOMIC_CONTEXT_DB", str(tmp_path / "empty.sqlite"))
-        body = client.get("/search/peptide/SAMPLE0000000001").text
-        assert "Genomic context" not in body
-
     def test_detail_page_shows_annotation_when_present(
             self, client: Any, tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
         from sample import peptide_annotations as pa

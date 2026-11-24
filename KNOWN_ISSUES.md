@@ -279,16 +279,6 @@ The two are not the same population, so release detection deliberately keys on `
 
 ## Needs a compute run, not new code
 
-- **The PDB-homology sweep (`sample-cli build-pdb-homology`) has never been run**, so
-  `data/pdb_homology.sqlite` does not exist and the peptide page's "Structural validation against
-  the PDB" card never renders for any peptide. The code and the page are both in place
-  (`sample/pdb_homology.py`, `--store` defaulting to that path); what is missing is the run, which
-  queries RCSB once per peptide and is therefore network-bound rather than CPU-bound. Note that
-  even after a full sweep most peptides will legitimately show "no match" -- the PDB is small and
-  biased toward structures solved for other reasons -- so the card appearing rarely is not the same
-  as the card never appearing, which is the current state. Same category as the RefSeq
-  genomic-context sweep and the `build-annotations` batch below: built, wired, unrun.
-
 - **Synergy models must be retrained** to use the antibiotic Morgan fingerprint
   (`sample.antibiotics`) instead of the old one-hot column — `sample-cli train-synergy`, which is a manual/diagnostic command and is NOT one of the numbered `make all` steps.
   The change is in `synergy.featurise`; the shipped models still carry the old feature scheme.
@@ -300,19 +290,6 @@ The two are not the same population, so release detection deliberately keys on `
   both the trained models (the `train_all` run above) and the reference tool installed in
   `sample-predictors` (HemoPI2 is the one confirmed-working tool). `REFERENCE_TOOLS` covers only
   hemolytic→HemoPI2 today; macrel and toxinpred3 join once their environments are built.
-
-## Blocked on a decision, not on data
-
-- **RefSeq genomic context (tBLASTn presence/absence) — fully built and wired; only the run is
-  outstanding.** `sample.genomic_context` + `sample.genomic_context_store` and the resumable,
-  database-backed sweep (`sample-cli genomic-context-sweep` / `make sweep-genomic-context`) are
-  complete and unit-tested offline (no genome downloaded in the suite): one genome at a time is
-  downloaded, tBLASTn'd (kept only at ≥95% coverage AND identity), its hits written to
-  `data/genomic_context.sqlite`, and the genome deleted, with each genome recorded as processed so an
-  interrupted sweep resumes rather than re-downloads. The peptide page reads the sunburst straight
-  from that database. The download run itself is still large (the ~13,000 reference/representative
-  genomes, commonly cited in the hundred-GB range) so it is run deliberately and in slices (`LIMIT`),
-  not that it is *blocked* — the code, store and page are all in place.
 
 ## Latent NameErrors: a class of bug worth re-scanning for
 
@@ -437,9 +414,22 @@ and a `circular_caveat` — every one of the sequence-based predictors, the near
 the HMM scan assume a linear sequence, so a cyclic peptide's results are computed (not skipped) but
 explicitly flagged as approximate rather than presented as if the molecule were linear.
 
-Code is built and unit-tested; **the batch run over ~34k peptides itself has not been run** — it is
-disk-light but calls five external tools per peptide (some of them, e.g. AMPlify, are not fast), so
-it is a real time commitment left to be run deliberately, the same discipline as the RefSeq sweep.
+**Run in full on 2026-11-24: all 55,879 non-decoy peptides are annotated** (`data/peptide_annotations.sqlite`,
+101 MB), so the panel renders for every peptide and the ADMET hemolysis gap resolves to real
+HemoPI2/macrel numbers rather than a pointer. Coverage: predictors 100%, SAMPLE family 94.1%,
+near-identity hits 61.9%, family-HMM hits 34.1%, Pfam domains 26.0%, circular 5.7%. 54,874 peptides
+carry all nine predictor fields; the shortfall is AntiCP2 declining 1,005 peptides, HemoPI2 213 and
+macrel 1, all of them 1-4 residues long and below those tools' feature-extraction minimum — a
+refusal reproduced live against the same sequences, not a transient failure, and omitted rather than
+zero-filled.
+
+The run took 36 minutes rather than the ~4.2 hours the batch implies, because `--predictors-from`
+took the predictor values from `data/sample_final_release/final_dataset.csv`, which already held all
+four predictors for the whole corpus. That is sound because the predictors are pure functions of the
+sequence and the reuse is guarded by sequence identity: all 55,879 ids matched, **0 rows were dropped
+on a mismatch**, and a row whose sequence disagreed with the database would have been dropped and
+counted rather than attached. It also makes the peptide page's numbers identical to the published
+dataset's by construction instead of by coincidence.
 
 ## Environment tooling note: `conda run -n <env>` is unreliable in this session's shell
 

@@ -64,18 +64,17 @@ dependencies:
       # peptide detail page (/search/peptide/<id>), which is exactly where it surfaced.
       - pyahocorasick
 
-      # Imported lazily, inside the functions that need it, by four things this environment
-      # serves: the peptide page's DSSP / Ramachandran / pLDDT card (sample/structure_analysis.py),
-      # its PDB-homology superposition (sample/pdb_homology.py), its ADMET summary
-      # (sample/admet.py, via Bio.SeqUtils.ProtParam) and the Expression Wizard's GenBank export
-      # (sample/expression.py's construct_genbank). Every one of those imports sits inside a
-      # function, so the app imports, starts, and serves the whole dashboard without this package:
-      # the three peptide-page cards are skipped by callers that catch and log at debug level, and
-      # only the GenBank download fails outright, with a 500. Exactly the sqlalchemy /
-      # python-multipart shape above -- absent from the declaration, invisible until one specific
-      # request. It went unnoticed longer than those two because neither real run path exercises
-      # this environment: the Dockerfile builds from `environments/sample.yml`, and on this host
-      # `conda run -n sample-web` resolves to `sample` anyway (see KNOWN_ISSUES.md).
+      # Imported lazily, inside the functions that need it, by two things this environment
+      # serves: the peptide page's DSSP / Ramachandran / pLDDT card (sample/structure_analysis.py)
+      # and its ADMET summary (sample/admet.py, via Bio.SeqUtils.ProtParam). Both imports sit
+      # inside a function, so the app imports, starts, and serves the whole dashboard without this
+      # package -- those cards are simply skipped by callers that catch and log at debug level.
+      # Exactly the sqlalchemy / python-multipart shape above: absent from the declaration,
+      # invisible until one specific request. It went unnoticed longer than those two because
+      # neither real run path exercises this environment: the Dockerfile builds from
+      # `environments/sample.yml`, and on this host `conda run -n sample-web` resolves to `sample`
+      # anyway (see KNOWN_ISSUES.md). The PDB-homology superposition and the Expression Wizard's
+      # GenBank export were the other two lazy callers; both have left this repository.
       - biopython
       # Top500 Ramachandran reference tables (Lovell et al. 2003) for
       # sample/structure_analysis.py -- read as DATA FILES via importlib.metadata; the

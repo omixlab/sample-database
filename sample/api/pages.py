@@ -499,40 +499,6 @@ def peptide_detail(request: Request, entry_id: str) -> Any:
     except Exception as e:
         logger.debug(f"Structure analysis unavailable for {entry_id}: {e}")
 
-    # PDB homology: the closest real, experimentally-solved structure RCSB holds for this
-    # sequence, with the ColabFold prediction superposed onto it (CA-RMSD). Populated by
-    # `build-pdb-homology`; None until that sweep has reached this peptide. Most peptides never
-    # get a match at all -- the PDB is small and biased toward structures solved because they were
-    # already interesting -- so a stored {"has_match": False} is the expected common case, not an
-    # error, and is passed through rather than hidden.
-    pdb_homology = None
-    try:
-        from sample import pdb_homology as pdb_homology_store
-        pdb_homology = pdb_homology_store.get(entry_id)
-    except Exception as e:
-        logger.debug(f"PDB homology unavailable for {entry_id}: {e}")
-
-    # Genomic context: the taxonomic breakdown of where this peptide's sequence is found across
-    # RefSeq genomes (tBLASTn presence/absence). Read from the sweep's database
-    # (sample.genomic_context_store), so the sunburst reflects whatever a `genomic-context-sweep`
-    # has processed so far. Absent -- panel skipped -- until a sweep has recorded hits for this
-    # peptide; the sweep is disk-/time-bound and never runs implicitly.
-    genomic_context = None
-    try:
-        from sample import genomic_context_store as gctx_store
-        hits = gctx_store.get_hits(entry_id)
-        if hits:
-            from sample.genomic_context import krona_hierarchy, krona_svg, load_domain_lookup
-            summary = gctx_store.summary(entry_id)
-            genomic_context = {
-                "svg": krona_svg(krona_hierarchy(hits, load_domain_lookup())),
-                "hits": summary["total_hits"],
-                "genomes_searched": summary["genomes_searched"],
-                "genomes_with_hits": summary["genomes_with_hits"],
-            }
-    except Exception as e:
-        logger.debug(f"Genomic context unavailable for {entry_id}: {e}")
-
     # Pre-computed comprehensive annotation: external predictors (macrel/hemopi2/amplify/anticp2/
     # toxinpred3), near-identity hits and family-HMM hits, with a circular caveat where it applies.
     # Populated by `build-annotations`; None until that batch has run for this peptide.
@@ -582,12 +548,10 @@ def peptide_detail(request: Request, entry_id: str) -> Any:
         "sdf_content": sdf_content,
         "secondary_structure": _secondary_structure(peptide.get("sequence")),
         "structure_analysis": structure_analysis,
-        "pdb_homology": pdb_homology,
         # Whether a folded structure exists at all, so the page offers a PDB download only when
         # there is really one to serve rather than linking to a 404.
         "has_pdb": os.path.exists(os.path.join(structures_dir, f"{entry_id}.pdb")),
         "admet": admet,
-        "genomic_context": genomic_context,
         "annotation": annotation,
     })
 

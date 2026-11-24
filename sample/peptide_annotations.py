@@ -95,6 +95,27 @@ def init_db(db_path: Optional[str] = None) -> str:
     return db_path or default_db_path()
 
 
+def _domain_list(domains: Any) -> List[str]:
+    """
+    Normalises the Pfam-accession field into a list.
+
+    :param domains: Pfam accessions as the release database stores them -- a comma-separated
+        **string** (``peptide_families.all_domains``, e.g. ``"PF16211,PF00125,PF00808"``) -- or an
+        already-split sequence of accessions.
+    :returns: The accessions as a list of non-empty strings.
+
+    A bare ``list()`` over the string form is what this exists to prevent: it explodes
+    ``"PF12121"`` into ``["P","F","1","2","1","2","1"]``, and the peptide page renders one badge per
+    element, so a single real domain displayed as seven badges reading P, F, 1, 2, 1, 2, 1. The
+    unit tests passed a list and never exercised the string that :func:`build_all` actually supplies.
+    """
+    if not domains:
+        return []
+    if isinstance(domains, str):
+        return [part.strip() for part in domains.split(",") if part.strip()]
+    return [str(part).strip() for part in domains if str(part).strip()]
+
+
 def _predictor_values(row: Dict[str, Any]) -> Dict[str, Any]:
     """
     :param row: A peptide's record/columns (post-predictor-enrichment).
@@ -147,7 +168,7 @@ def _hmm_hits(sequence: str) -> List[Dict[str, Any]]:
 def annotate_one(entry_id: str, sequence: str, is_circular: bool,
                  predictor_row: Optional[Dict[str, Any]] = None,
                  family: Optional[Dict[str, Any]] = None,
-                 pfam_domains: Optional[List[str]] = None) -> Dict[str, Any]:
+                 pfam_domains: Optional[Any] = None) -> Dict[str, Any]:
     """
     Assembles one peptide's annotation.
 
@@ -157,7 +178,9 @@ def annotate_one(entry_id: str, sequence: str, is_circular: bool,
     :param predictor_row: The peptide's columns after predictor enrichment (predictor fields read
         from it); ``None`` when no predictors have run.
     :param family: The peptide's ``{family_id, family_name, source}`` (SAMPLE cluster or Pfam family).
-    :param pfam_domains: Pfam accessions assigned to the peptide (its ``all_domains``).
+    :param pfam_domains: Pfam accessions assigned to the peptide -- its ``all_domains``, either
+        the comma-separated string the release database stores or an already-split list.
+        Normalised by :func:`_domain_list`.
     :returns: The annotation dict -- predictors, Pfam domains, family/cluster, near-identity hits,
         HMM hits, ``is_circular`` and, when circular, a ``circular_caveat``.
     """
@@ -165,7 +188,7 @@ def annotate_one(entry_id: str, sequence: str, is_circular: bool,
         "entry_id": entry_id,
         "is_circular": bool(is_circular),
         "predictors": _predictor_values(predictor_row or {}),
-        "pfam_domains": list(pfam_domains or []),
+        "pfam_domains": _domain_list(pfam_domains),
         "family": family or None,
         "near_identity_hits": _near_identity_hits(sequence, entry_id),
         "hmm_hits": _hmm_hits(sequence),
@@ -214,9 +237,84 @@ def processed_ids(db_path: Optional[str] = None) -> set:
         conn.close()
 
 
+def _predictors_from_csv(csv_path: str,
+                         sequences_by_id: Dict[str, str]) -> Dict[str, Dict[str, Any]]:
+    """
+    Reads already-computed predictor columns out of a release CSV, guarded by sequence identity.
+
+    The external predictors are pure functions of the one-letter sequence, so a value computed for
+    a sequence is valid for any record carrying that same sequence. That is the whole justification
+    for reusing them instead of re-running the tools: ``final_dataset.csv`` already holds all four
+    predictors for the whole corpus, and re-running them costs hours of HemoPI2 to arrive at the
+    same numbers -- while risking a peptide page that disagrees with the published dataset.
+
+    The guard is what makes it safe: a CSV row is used **only** when its sequence matches the
+    release database's sequence for that ``entry_id``, character for character after
+    case-folding and stripping. A mismatch means the CSV is from a different release than the
+    database, and attaching its numbers would silently mislabel the peptide, so the row is dropped
+    and counted rather than trusted.
+
+    Nulls are carried over deliberately. A null here is the release's own record that the tool
+    declined that sequence -- AntiCP2 and HemoPI2 both refuse very short peptides -- and
+    :func:`_predictor_values` omits a missing field rather than zero-filling it, so the annotation
+    shows exactly which predictors ran.
+
+    :param csv_path: A release CSV carrying ``entry_id``, ``sequence`` and predictor columns.
+    :param sequences_by_id: The release database's ``entry_id -> sequence``, for the guard.
+    :returns: ``entry_id -> {predictor column: value}`` for the ids present in both, with matching
+        sequences. Ids absent from the CSV are simply absent, for the caller to handle.
+    :raises FileNotFoundError: When ``csv_path`` does not exist -- a silently empty map would look
+        exactly like "the predictors all declined", which is the failure this must not resemble.
+    """
+    import pandas as pd
+
+    if not os.path.exists(csv_path):
+        raise FileNotFoundError(
+            f"Predictor source CSV not found: {csv_path}. Pass an existing release CSV or omit "
+            f"--predictors-from to run the external predictors instead.")
+
+    header = pd.read_csv(csv_path, nrows=0).columns.tolist()
+    for required in ("entry_id", "sequence"):
+        if required not in header:
+            raise ValueError(f"{csv_path} has no '{required}' column; cannot match predictors to "
+                             f"peptides without it.")
+    predictor_columns = [c for c in PREDICTOR_FIELDS if c in header]
+    if not predictor_columns:
+        raise ValueError(
+            f"{csv_path} carries none of the known predictor columns ({', '.join(PREDICTOR_FIELDS)}). "
+            f"Reading it would attach no predictions at all.")
+
+    out: Dict[str, Dict[str, Any]] = {}
+    mismatched = 0
+    for chunk in pd.read_csv(csv_path, usecols=["entry_id", "sequence"] + predictor_columns,
+                             chunksize=200_000, low_memory=False):
+        for record in chunk.to_dict("records"):
+            entry_id = str(record["entry_id"])
+            expected = sequences_by_id.get(entry_id)
+            if expected is None or entry_id in out:
+                continue
+            if str(record["sequence"] or "").strip().upper() != str(expected or "").strip().upper():
+                mismatched += 1
+                continue
+            out[entry_id] = {column: record[column] for column in predictor_columns}
+
+    logger.info("Predictors read from %s: %d peptide(s) matched by sequence, %d row(s) dropped on "
+                "a sequence mismatch, %d column(s) available (%s).",
+                csv_path, len(out), mismatched, len(predictor_columns),
+                ", ".join(predictor_columns))
+    if mismatched:
+        logger.warning(
+            "%d CSV row(s) had an entry_id in the database but a DIFFERENT sequence, so their "
+            "predictor values were NOT used. That means this CSV and the release database are not "
+            "from the same release; the affected peptides fall back to running the predictors.",
+            mismatched)
+    return out
+
+
 def build_all(db_path_release: Optional[str] = None, store_path: Optional[str] = None,
               limit: Optional[int] = None, resume: bool = True,
-              run_predictors: bool = True) -> Dict[str, Any]:
+              run_predictors: bool = True,
+              predictors_from: Optional[str] = None) -> Dict[str, Any]:
     """
     Pre-computes and stores the annotation for every release peptide.
 
@@ -232,7 +330,13 @@ def build_all(db_path_release: Optional[str] = None, store_path: Optional[str] =
     :param resume: Skip peptides already annotated (the default).
     :param run_predictors: Run the external predictors in batch first; ``False`` annotates from
         whatever predictor columns are already on the records (or none).
-    :returns: A summary (``annotated`` this run, ``total_stored``).
+    :param predictors_from: A release CSV to take the predictor values from instead of re-running
+        the tools (see :func:`_predictors_from_csv` for the sequence-identity guard that makes this
+        safe). Peptides the CSV cannot supply still get the live predictors when ``run_predictors``
+        is set, so coverage is never silently reduced by using this.
+    :returns: A summary: ``annotated`` this run, ``total_stored``, ``predictors_from_csv`` and
+        ``predictors_run_live`` (how each peptide's predictor values were obtained), and
+        ``without_predictors`` (annotated with no predictor values at all).
     """
     import pandas as pd
 
@@ -256,26 +360,66 @@ def build_all(db_path_release: Optional[str] = None, store_path: Optional[str] =
         return {"annotated": 0, "total_stored": len(already)}
 
     frame = pd.DataFrame(todo)
-    if run_predictors:
+
+    # How this run gets its predictor values. `predictors_by_id` stays None in the original
+    # path (predictors enriched onto `frame` in one batch); when a source CSV is given it becomes
+    # entry_id -> columns, and only the peptides that CSV cannot supply fall through to the tools.
+    predictors_by_id: Optional[Dict[str, Dict[str, Any]]] = None
+    from_csv_count = 0
+    live_count = 0
+    if predictors_from:
+        sequences_by_id = {str(r["entry_id"]): str(r["sequence"] or "") for r in todo}
+        predictors_by_id = _predictors_from_csv(predictors_from, sequences_by_id)
+        from_csv_count = len(predictors_by_id)
+        residual = [r for r in todo if str(r["entry_id"]) not in predictors_by_id]
+        if residual and run_predictors:
+            logger.info("%d peptide(s) were not in %s; running the predictors for those.",
+                        len(residual), predictors_from)
+            try:
+                from sample.peptide_predictors import enrich_with_predictors
+                live = enrich_with_predictors(pd.DataFrame(residual), sequence_column="sequence")
+                for record in live.to_dict("records"):
+                    predictors_by_id[str(record["entry_id"])] = {
+                        column: record[column] for column in PREDICTOR_FIELDS if column in record}
+                live_count = len(residual)
+            except Exception as exc:  # noqa: BLE001 -- predictors are optional; annotate the rest
+                logger.warning("Predictor enrichment unavailable for the %d peptide(s) missing from "
+                               "the CSV; annotating them without predictors: %s",
+                               len(residual), exc)
+        elif residual:
+            logger.warning("%d peptide(s) were not in %s and predictors are disabled, so they are "
+                           "annotated with no predictor values.", len(residual), predictors_from)
+    elif run_predictors:
         try:
             from sample.peptide_predictors import enrich_with_predictors
             frame = enrich_with_predictors(frame, sequence_column="sequence")
+            live_count = len(todo)
         except Exception as exc:  # noqa: BLE001 -- predictors are optional; annotate the rest
             logger.warning("Predictor enrichment unavailable; annotating without it: %s", exc)
 
     annotated = 0
+    without_predictors = 0
     for record in frame.to_dict("records"):
         entry_id = str(record["entry_id"])
+        predictor_row = (record if predictors_by_id is None
+                         else {**record, **predictors_by_id.get(entry_id, {})})
         peptide = release_db.get_peptide(entry_id, db_path=db_path_release) or {}
         topology = peptide.get("topology") or {}
         is_circular = bool(topology.get("is_cyclic"))
         family = peptide.get("family")
         pfam_domains = (family or {}).get("all_domains") if isinstance(family, dict) else None
         annotation = annotate_one(entry_id, str(record["sequence"]), is_circular,
-                                  predictor_row=record, family=family, pfam_domains=pfam_domains)
+                                  predictor_row=predictor_row, family=family,
+                                  pfam_domains=pfam_domains)
         save(entry_id, annotation, store_path)
         annotated += 1
+        if not annotation["predictors"]:
+            without_predictors += 1
 
-    logger.info("Annotated %d peptide(s) this run; store now holds %d.",
-                annotated, len(already) + annotated)
-    return {"annotated": annotated, "total_stored": len(already) + annotated}
+    logger.info("Annotated %d peptide(s) this run; store now holds %d. Predictor values: %d from "
+                "CSV, %d computed live, %d peptide(s) ended with none.",
+                annotated, len(already) + annotated, from_csv_count, live_count,
+                without_predictors)
+    return {"annotated": annotated, "total_stored": len(already) + annotated,
+            "predictors_from_csv": from_csv_count, "predictors_run_live": live_count,
+            "without_predictors": without_predictors}

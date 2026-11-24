@@ -1561,6 +1561,10 @@ renaming touched them — is the reason this log stays fixed while live referenc
   on this host `conda run -n sample-web` resolves to `sample`), which is why serving it here looked
   correct throughout. Declared, per the standing rule that an import must be declared in the
   environment that runs it; the third such incident after `sqlalchemy` and `python-multipart`.
+  (Recorded as found. Two of those four lazy callers have since left the repository -- the
+  Expression Wizard became its own tool, and the PDB-homology superposition was removed on
+  2026-11-24 -- so `biopython` now has two callers here, not four. The reason it must stay
+  declared is unchanged.)
 - **The predict tab serves what the rollout published, not what is on disk.** It offered 115
   models: 106 from `train-ml`'s per-feature-block `esm2` matrix (a manual diagnostic the Makefile
   deliberately keeps outside the numbered pipeline), one `esm2_xgboost_backup`, and 8 `flaml`
@@ -2156,6 +2160,9 @@ finished and wired in, several new tools were built, and two real pre-existing b
   sign-off; `--limit` bounds a first pass) and the per-peptide webserver page to embed the sunburst,
   which has nothing to show until a sweep produces data. This mirrors every compute-heavy step —
   the code is complete and verified, the run is a separate, explicit decision.
+  **Superseded 2026-11-24: this feature was removed from the project without ever being run.** The
+  reasoning above is kept as the record of what was built and why; it no longer describes anything
+  in the repository. See the removal entry at the end of this file.
 - **ADMET-lite (`sample.admet` / `sample-cli admet`).** A per-peptide ADMET summary that reports only
   what the sequence honestly supports. The deliberate scoping decision: full small-molecule ADMET
   suites (SwissADME, pkCSM) are calibrated on drug-like chemistry a peptide is nowhere near, so
@@ -2963,6 +2970,103 @@ it cannot be forgotten again. It costs no model calls.
   extracted tool now carries an on-disk equivalent of the same `cached()` contract, so the design
   is not lost -- it is in the repository that actually runs it. The git history holds the Redis
   implementation if a future caller wants it back.
+
+- **RefSeq genomic context and PDB homology removed, on request (2026-11-24).** Both were
+  complete, unit-tested, wired into the peptide page -- and never run: `data/genomic_context.sqlite`
+  and `data/pdb_homology.sqlite` did not exist, so neither card had rendered for any peptide, ever.
+  Each was also the most expensive thing left in the project to finish: the genomic-context sweep
+  wanted the ~13,000 RefSeq reference/representative genomes (commonly cited in the hundred-GB
+  range) downloaded one at a time, and the PDB sweep wanted one RCSB round-trip per peptide, about
+  7.8 hours at its own politeness delay for 55,879 peptides. Removing them retires that cost rather
+  than carrying it as a permanent "needs a compute run" entry.
+
+  What went, in one pass, because a removal is only finished when nothing still *claims* the
+  feature exists: three modules (`sample/genomic_context.py`, `sample/genomic_context_store.py`,
+  `sample/pdb_homology.py`) and their three test files; three CLI subcommands (`genomic-context`,
+  `genomic-context-sweep`, `build-pdb-homology`) with their parsers and handlers; two Makefile
+  targets (`tool-genomic-context`, `sweep-genomic-context`) and their `.PHONY` entries; two peptide-page
+  blocks in `sample/api/pages.py` and their two template cards; two tests in `tests/test_api.py`;
+  three `automodule::` targets in `docs/sample.rst` (86 -> 83); and the prose in `README.md`,
+  `ROADMAP.md`, `TODO.md` and `KNOWN_ISSUES.md`, including a `KNOWN_ISSUES.md` section heading
+  ("Blocked on a decision, not on data") that the removal left with nothing under it.
+
+  Two things deliberately *not* removed. `blast` stays in `environments/sample-web.yml`: it supplies
+  `blastp`/`makeblastdb` for the sequence-search page, which is a different feature that happens to
+  share the toolkit -- the genomic-context sweep used `tblastn` from the same package. And the
+  manuscript needed no edit, because it never claimed either feature; that was checked rather than
+  assumed, which is the lesson the FICI removal earlier in this session paid for.
+
+- **The annotation batch run, and the Pfam bug it would have written 55,879 times (2026-11-24).**
+  Asked to make sure all annotations were run, the first thing a 30-peptide timing slice showed was
+  that `pfam_domains` came back as `["P","F","1","2","1","2","1"]`. `peptide_families.all_domains` is
+  a comma-separated **string** and `annotate_one` did `list(pfam_domains or [])`, which iterates it
+  character by character; the peptide page renders one badge per element, so a single real domain
+  displayed as seven badges reading P, F, 1, 2, 1, 2, 1. Every pre-existing test passed an
+  already-split list, so the suite was green while the only path that runs in production was wrong --
+  which is the general lesson, not a detail about Pfam: a test that constructs its input differently
+  from the caller is testing a function nobody calls. Fixed with a normaliser that accepts either
+  form, and seven tests that pin the string. All 16,065 accessions in the finished store are seven
+  characters; none is one.
+
+- **`--predictors-from`: reuse the release's predictor values instead of recomputing them.** The
+  batch re-ran all four external predictors over the corpus, about 3.6 hours of it HemoPI2 at
+  0.21 s/sequence, to produce numbers `data/sample_final_release/final_dataset.csv` already held for
+  every peptide. Reuse is sound because an external predictor is a pure function of the one-letter
+  sequence, so the reuse is guarded by exactly that: a CSV row is used only when its sequence matches
+  the database's for that `entry_id`, and a mismatch drops the row and counts it rather than
+  attaching numbers from a different release. On this release all 55,879 matched and 0 were dropped.
+  Two things made it worth doing beyond the time: the peptide page's predictor values are now
+  identical to the published dataset's *by construction* rather than by coincidence, and the run fit
+  in 36 minutes.
+
+  The nulls are carried over deliberately. AntiCP2 declines 1,005 peptides, HemoPI2 213 and macrel 1,
+  every one of them 1-4 residues; that was checked by re-running those exact sequences live with
+  magainin-2 as a control in the same batch and reproducing the identical refusal pattern, so a null
+  is a property of the sequence and not a stale gap being propagated. `_predictor_values` omits a
+  missing field instead of zero-filling it, so the panel shows which predictors actually ran.
+
+- **The Zenodo archive was built by `cp -r`, which merges and never deletes (2026-11-24).** Step 54
+  was a shell chain, and it exited 0 every time, which is why it was never looked at. A dry run of
+  the replacement found **208 files in the archive that do not belong to the release**: 126 `.pyc`
+  files in two `__pycache__` directories; 11 modules that exist nowhere in the repository
+  (`expression.py`, `genomic_context.py`, `genomic_context_store.py`, `pdb_homology.py`,
+  `result_cache.py`, `templates/expression.html`, `webserver.py`, four `scripts/utils/*.py`); the
+  18 synergy FICI pickles retired earlier in this session, still sitting in `models/synergy/` in the
+  archive after being moved out of the release; and **28 `scripts/step_*.sh` files describing a
+  28-step shell pipeline that has been a 54-step Makefile for a long time**. That last one is the
+  one that matters: the archive was shipping reproduction instructions for a pipeline that no longer
+  exists, to people whose only copy of this project is the archive. An archive is a claim about what
+  a release contained, and none of this was detectable by its reader.
+
+  `sample/zenodo_dump.py` replaces the chain. It **mirrors** (`rsync --delete`) instead of copying
+  into, so a file leaving the project leaves the archive. Three details were each a bug on their
+  own: `--delete` alone **protects** destination files that match an `--exclude`, so excluding
+  `__pycache__` from the copy would have left all 126 `.pyc` files exactly where they were --
+  `--delete-excluded` is what makes an exclude a statement about the destination; `rsync -a`
+  preserves symlinks, and `environment.yml` is one, pointing into an `environments/` directory the
+  old recipe never copied, so the archive's single environment specification was a dangling pointer
+  (`-aL` resolves it, and `environments/` is now archived); and `--delete` only prunes inside the
+  directories it syncs, while the archive root is assembled from a dozen separate calls, so an
+  undeclared top-level entry would sit there forever -- the root is now pruned to exactly what the
+  recipe declares.
+
+  Two deliberate scoping calls. `models_retired/` is excluded unless `--include-retired`: 348 MB of
+  withdrawn models, 216 MB of it the synergy pickles pulled because 2 of 18 passed their own gate,
+  and publishing a model that was withdrawn for being unreliable is an invitation to use it.
+  `sample_final_release/sample_records_json_pdb_sdf.zip` is named explicitly in the recipe because
+  `serialize_archive.py` drops a copy at the archive root -- a file the old chain never copied and
+  kept only by accident, through the same never-deleting behaviour, and which a correct mirror would
+  otherwise have deleted.
+
+- **The release version had three homes and no mechanism (2026-11-24).** `pyproject.toml`,
+  `sample/__init__.py` and `docs/conf.py` each carried it, all three read `1.0.0`/`1.0` by luck
+  rather than by construction. `generate-zenodo-dump --bump major|minor|patch` writes all three
+  together, resetting the components below the bumped one (`1.4.7 --bump minor` is `1.5.0`, not
+  `1.5.7`), and the tarball is named `zenodo_dump-v<version>.tar.gz` with a `.sha256` sidecar, so
+  two releases can no longer share a filename -- the old one was always `zenodo_dump.tar.gz`.
+  `read_version` **refuses to build when the three disagree** rather than picking one: a wrong
+  version on an archive is worse than a failed build, because the archive outlives the mistake.
+  `docs/conf.py` is compared on `major.minor` only, which is Sphinx's convention and not drift.
 
 ## Known environment quirk (not a code bug)
 

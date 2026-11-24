@@ -86,8 +86,7 @@ carries exactly its dependencies.
    AlgPred2 (AMPlify was retired 2026-08-26 after a sustained upstream crash rate in production) —
    plus Pfam/family, near-identity and family-HMM hits, with circular peptides
    flagged rather than silently scored as linear), a **reference-tool benchmark** (`benchmark`),
-   **RefSeq genomic context** (`genomic-context` / `genomic-context-sweep`: per-peptide tBLASTn
-   presence/absence with a Krona-style taxonomy sunburst, resumable one genome at a time), and an
+   and an
    **incremental update** path (`incremental-update` / `update-families`) that places newly
    ingested peptides into the existing family map without renumbering.
 10. **Interactive dashboard** — background prediction jobs (Redis + Celery), a database explorer with
@@ -295,7 +294,7 @@ The commands, grouped by pipeline phase (the source of truth for flags is always
 | **Load & model (43–49)** | `load-sql`, `anomaly-detection`, `train-antibacterial-ml-model`, `train-organism-specific-ml-models` (both FLAML-searched XGBoost, 600s budget, holdout + cross-validation + y-randomization), `benchmark-all`, `eda`, `compare-chemical-spaces` |
 | **Structure & design** | `fold`, `express`, `admet` (sequence-only ADMET-lite profile) |
 | **Sources & annotation (outside `make all`)** | `import-cycpeptmpdb` (index ~8,500 cyclic peptides, with structural linking to release entries), `build-annotations` (pre-compute the five external predictors + Pfam/family/near-identity/HMM hits per peptide) |
-| **Analysis & maintenance (outside `make all`)** | `update-families` (place new peptides into the existing family map), `incremental-update` (diff a fresh acquisition run against the live release, then place what is new), `train-ml` (the full per-task/per-block matrix, fixed-hyperparameter XGBoost by default or FLAML-searched with the default omitted -- see `--fixed-hyperparameters`), `train-synergy` (peptide-antibiotic synergy, out of scope for the numbered pipeline), `validate-ml`, `benchmark` (a model vs a reference tool on one holdout; `benchmark-all` runs every model with a registered reference tool and is step 49), `genomic-context` / `genomic-context-sweep` (per-peptide tBLASTn presence/absence; the sweep is resumable, one genome at a time), `build-topology` (cyclic/disulfide topology), `build-pdb-homology` (RCSB sequence search + CA-RMSD superposition of each ColabFold prediction onto the closest real solved structure, when one exists; resumable, one HTTP round-trip per peptide), `enrich-macrel` / `enrich-anticp2` / `enrich-hemopi2` / `enrich-algpred2` (`make tool-enrich-<name>`: re-run ONE external predictor over the already-enriched dataset, filling in only the peptides missing its result -- not descriptors, not any other predictor, not a full steps-21-27 enrichment re-run; these are also steps 24-27 in the numbered pipeline, `ALL=1` forces a full recompute; AMPlify had the same command until it was retired 2026-08-26), `extract-tables` |
+| **Analysis & maintenance (outside `make all`)** | `update-families` (place new peptides into the existing family map), `incremental-update` (diff a fresh acquisition run against the live release, then place what is new), `train-ml` (the full per-task/per-block matrix, fixed-hyperparameter XGBoost by default or FLAML-searched with the default omitted -- see `--fixed-hyperparameters`), `train-synergy` (peptide-antibiotic synergy, out of scope for the numbered pipeline), `validate-ml`, `benchmark` (a model vs a reference tool on one holdout; `benchmark-all` runs every model with a registered reference tool and is step 49), `build-topology` (cyclic/disulfide topology), `enrich-macrel` / `enrich-anticp2` / `enrich-hemopi2` / `enrich-algpred2` (`make tool-enrich-<name>`: re-run ONE external predictor over the already-enriched dataset, filling in only the peptides missing its result -- not descriptors, not any other predictor, not a full steps-21-27 enrichment re-run; these are also steps 24-27 in the numbered pipeline, `ALL=1` forces a full recompute; AMPlify had the same command until it was retired 2026-08-26), `extract-tables` |
 | **Serve & admin (51)** | `webserver`, `admin {create,passwd,list,remove,enable,disable}` |
 
 > `validate-manual-curation` remains as a deprecated alias for `revise`. The command it used to run
@@ -384,7 +383,21 @@ comment on `sample.peptide_predictors.EXTERNAL_PREDICTORS`.
 | 51 | `compare-chemical-spaces` | Compare Chemical Spaces | ml |
 | 52 | `generate_dataset_report.py` | Generate Paper Figures and Tables | ml |
 | 53 | `webserver` | Run Webserver | web |
-| 54 | *(generate zenodo dump)* | Generate Zenodo Dump | - |
+| 54 | `generate-zenodo-dump` | Generate Zenodo Dump | web |
+
+Step 54 takes a version. `BUMP=major|minor|patch` raises the release version before building,
+writing it to `pyproject.toml`, `sample/__init__.py` and `docs/conf.py` together, and names the
+tarball after it (`data/zenodo_dump-v<version>.tar.gz`, with a `.sha256` beside it) so two releases
+cannot share a filename:
+
+```bash
+make step_54_generate_zenodo_dump BUMP=minor
+sample-cli generate-zenodo-dump --bump patch --dry-run   # report, write nothing
+```
+
+The archive **mirrors** the release rather than copying into it: anything no longer part of the
+project is removed, bytecode is never archived, and `models_retired/` is excluded unless
+`--include-retired` is passed. `--dry-run` lists what would leave the archive before it does.
 
 The pipeline is scoped to antimicrobial (antibacterial) peptide prediction, by instruction -- the
 one case study while the FLAML-searched training path is proved out. `train-ml` (the full
@@ -944,16 +957,10 @@ curl localhost:8000/predict/<job_id>/json
 * **Explore / Datasets** — browse, search, filter, and inspect peptide records; per-peptide detail
   with 2D structure, DSSP secondary structure, a Ramachandran plot with a favored/allowed/outlier
   call per residue, disorder diagrams, families, modifications, cross-references, and citations.
-  Four further panels appear when their data exists: an **ADMET-lite** profile (with hemolysis
-  resolved from the annotator once
-  `build-annotations` has scored the peptide, and permeability left as an explicit gap), the
-  pre-computed **annotation** (five external predictors, Pfam domains, near-identity and family-HMM
-  hits, with a caveat shown for circular peptides), **PDB structural validation** (once
-  `build-pdb-homology` has reached the peptide and RCSB holds a close enough match: the ColabFold
-  prediction superposed onto the closest real, experimentally-solved structure, reported as
-  CA-RMSD — the one check that says whether a prediction agrees with reality, not only with
-  itself), and the **genomic context** sunburst once a
-  `genomic-context-sweep` has recorded hits for that peptide.
+  Two further panels appear when their data exists: an **ADMET-lite** profile (with hemolysis
+  resolved from the annotator once `build-annotations` has scored the peptide, and permeability left
+  as an explicit gap), and the pre-computed **annotation** (four external predictors, Pfam domains,
+  near-identity and family-HMM hits, with a caveat shown for circular peptides).
 * **Search** — four modes: **BLAST** (`blastp`), **HMMER** (profile search), **PepMatch**
   near-identity, and **ESM-2 embedding** k-NN.
 * **Analytics** and **External DBs** — dataset analytics and cross-links to the source databases.

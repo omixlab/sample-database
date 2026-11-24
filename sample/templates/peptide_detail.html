@@ -511,18 +511,6 @@
     </div>
     {% endif %}
 
-    {% if genomic_context %}
-    <!-- RefSeq genomic context: taxonomic breakdown of where this sequence occurs (sample.genomic_context) -->
-    <div class="card bg-body-tertiary border-0 p-4 mt-2" id="genomic-context-card">
-        <h3 class="h5 fw-bold mb-1">Genomic context</h3>
-        <p class="text-muted small mb-3">Where this peptide's sequence occurs across RefSeq genomes —
-        tBLASTn hits at ≥95% coverage and identity, aggregated by taxonomy into a Krona-style
-        sunburst. {{ genomic_context.hits }} hit(s) across {{ genomic_context.genomes_with_hits }} of
-        {{ genomic_context.genomes_searched }} genomes searched.</p>
-        <div class="d-flex justify-content-center">{{ genomic_context.svg | safe }}</div>
-    </div>
-    {% endif %}
-
     {% if structure_analysis %}
     <!-- Structure-derived analysis from the ColabFold PDB: DSSP, Ramachandran, disorder -->
     <div class="card bg-body-tertiary border-0 p-4 mt-2" id="structure-analysis-card"
@@ -545,42 +533,6 @@
                 <p class="small text-muted mb-0" id="sa-rama-note"></p>
             </div>
         </div>
-    </div>
-    {% endif %}
-
-    {% if pdb_homology %}
-    <!-- PDB homology: closest real, experimentally-solved structure RCSB holds for this sequence,
-         with the ColabFold prediction superposed onto it (sample.pdb_homology). -->
-    <div class="card bg-body-tertiary border-0 p-4 mt-2" id="pdb-homology-card">
-        <h3 class="h5 fw-bold mb-1">Structural validation against the PDB</h3>
-        {% if pdb_homology.has_match %}
-        <p class="text-muted small mb-3">The ColabFold prediction superposed onto the closest
-        experimentally-solved structure RCSB holds for this sequence — the one check that says
-        whether the prediction agrees with a real structure, not just whether it is internally
-        self-consistent.</p>
-        <div class="row g-3">
-            <div class="col-sm-4">
-                <div class="small text-muted text-uppercase fw-bold">Reference</div>
-                <div><a href="https://www.rcsb.org/structure/{{ pdb_homology.pdb_id }}" target="_blank"
-                        rel="noopener noreferrer">{{ pdb_homology.pdb_id }}</a>
-                    chain {{ pdb_homology.chain }}</div>
-                {% if pdb_homology.title %}<div class="small text-muted">{{ pdb_homology.title }}</div>{% endif %}
-            </div>
-            <div class="col-sm-4">
-                <div class="small text-muted text-uppercase fw-bold">Sequence identity</div>
-                <div>{{ "%.0f"|format(pdb_homology.search_identity * 100) }}% (RCSB search) ·
-                    {{ "%.0f"|format(pdb_homology.structural_identity * 100) }}% (aligned region)</div>
-            </div>
-            <div class="col-sm-4">
-                <div class="small text-muted text-uppercase fw-bold">Superposition</div>
-                <div>{{ pdb_homology.rmsd }} Å CA-RMSD over {{ pdb_homology.aligned_residues }} aligned residue(s)</div>
-            </div>
-        </div>
-        {% else %}
-        <p class="text-muted small mb-0">No PDB entry close enough to this sequence was found —
-        expected for most of this corpus, since the PDB is small and biased toward structures
-        solved because they were already of interest, not a representative sample of known AMPs.</p>
-        {% endif %}
     </div>
     {% endif %}
 

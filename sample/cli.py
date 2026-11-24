@@ -475,15 +475,16 @@ def main() -> None:
     parser_ann.add_argument("--limit", type=int, default=0, help="Annotate at most this many NEW peptides this run (0 = all remaining; resumable, so run in slices)")
     parser_ann.add_argument("--no-resume", action="store_true", help="Re-annotate every peptide, ignoring which are already stored")
     parser_ann.add_argument("--no-predictors", action="store_true", help="Skip the external-predictor batch (annotate from families/hits/HMM only)")
+    parser_ann.add_argument("--predictors-from", default=None, metavar="CSV", help="Take the predictor values from a release CSV (e.g. data/sample_final_release/final_dataset.csv) instead of re-running the tools. Each row is used only when its sequence matches the database's for that entry_id, and any peptide the CSV cannot supply still gets the live predictors -- so this trades hours of recomputation for values identical to the published release, without reducing coverage.")
 
-    parser_pdbh = subparsers.add_parser("build-pdb-homology", help="Search RCSB for the closest real, experimentally-solved PDB structure to each folded peptide and superpose the ColabFold prediction onto it (CA-RMSD). Resumable, one HTTP round-trip per peptide -- run in slices.")
-    parser_pdbh.add_argument("--structures-dir", default=None, help="Where ColabFold PDBs live; the release default when omitted")
-    parser_pdbh.add_argument("--db", default=None, help="Release database to read peptide sequences from; the project default when omitted")
-    parser_pdbh.add_argument("--store", default=None, help="Homology results database to write; data/pdb_homology.sqlite when omitted")
-    parser_pdbh.add_argument("--limit", type=int, default=0, help="Search at most this many NEW peptides this run (0 = all remaining; resumable, so run in slices)")
-    parser_pdbh.add_argument("--no-resume", action="store_true", help="Re-search every folded peptide, ignoring which are already stored")
-    parser_pdbh.add_argument("--min-identity", type=float, default=0.7, help="Identity floor (0-1) for an RCSB hit to be worth fetching and superposing at all")
-    parser_pdbh.add_argument("--sleep", type=float, default=0.5, help="Delay (seconds) between peptides, to stay polite to RCSB's public API")
+    parser_zen = subparsers.add_parser("generate-zenodo-dump", help="Build the Zenodo archive from the current release: mirrors the release trees and the source into data/zenodo_dump (deleting anything no longer part of the project), writes VERSION + MANIFEST.json, and tars it under a version-stamped name with a .sha256 beside it.")
+    parser_zen.add_argument("--bump", choices=("major", "minor", "patch"), default=None, help="Raise the release version before building, writing it to pyproject.toml, sample/__init__.py and docs/conf.py together. Components below the bumped one reset to 0 (1.4.7 --bump minor -> 1.5.0).")
+    parser_zen.add_argument("--version", dest="set_version", default=None, help="Set an explicit version instead of bumping (mutually exclusive with --bump)")
+    parser_zen.add_argument("--dump-dir", default=None, help="Archive directory; data/zenodo_dump when omitted")
+    parser_zen.add_argument("--tarball", default=None, help="Tarball path; data/zenodo_dump-v<version>.tar.gz when omitted")
+    parser_zen.add_argument("--include-retired", action="store_true", help="Archive models_retired/ too. Off by default: those models were withdrawn from service, and publishing one invites its use.")
+    parser_zen.add_argument("--no-archive", action="store_true", help="Build the directory only, skipping the (slow) tarball")
+    parser_zen.add_argument("--dry-run", action="store_true", help="Report what would change -- version, files copied, stale files deleted -- and write nothing")
 
     # 17b2. Peptide names parser
     parser_names = subparsers.add_parser("build-names", help="Harvest peptide names and synonyms from every source database")
@@ -509,24 +510,6 @@ def main() -> None:
     parser_incupd.add_argument("--families", default=str(DATA_DIR / 'families/families.json'), help="families.json to read and update")
     parser_incupd.add_argument("--db", default=None, help="Release database to diff against and read the existing corpus from; the project default when omitted")
     parser_incupd.add_argument("--dry-run", action="store_true", help="Report the new peptides and their assignment without writing families.json")
-
-    parser_gctx = subparsers.add_parser("genomic-context", help="Search RefSeq genomes for a peptide's gene with tBLASTn (95%% cov+identity), organise hits as a Krona-style taxonomy plot. Downloads genomes: a large, gated run.")
-    parser_gctx.add_argument("--peptide", required=True, help="The peptide sequence to search for (one-letter code)")
-    parser_gctx.add_argument("--peptide-id", default="query", help="Label for the peptide in the output")
-    parser_gctx.add_argument("--assembly-summary", required=True, help="Path to NCBI assembly_summary.txt (reference/representative genomes)")
-    parser_gctx.add_argument("--limit", type=int, default=0, help="Search at most this many genomes (0 = all reference/representative; use a small value first)")
-    parser_gctx.add_argument("--work-dir", default=None, help="Scratch directory for downloads/BLAST; a temp dir when omitted")
-    parser_gctx.add_argument("--output", default=None, help="Path to write the hits + Krona JSON")
-    parser_gctx.add_argument("--svg", default=None, help="Path to write the Krona-style sunburst SVG")
-
-    parser_sweep = subparsers.add_parser("genomic-context-sweep", help="RefSeq genomic-context sweep for a peptide: one genome at a time -> tBLASTn -> write hits to the database -> delete the genome. Resumable. Downloads genomes: a large, gated run.")
-    parser_sweep.add_argument("--peptide", required=True, help="The peptide sequence to search for (one-letter code)")
-    parser_sweep.add_argument("--peptide-id", required=True, help="The peptide's id -- the key the hits are stored and read back under (use the release entry_id so the peptide page finds them)")
-    parser_sweep.add_argument("--assembly-summary", required=True, help="Path to NCBI assembly_summary.txt (reference/representative genomes)")
-    parser_sweep.add_argument("--limit", type=int, default=0, help="Search at most this many NEW genomes this run (0 = all remaining; run in slices)")
-    parser_sweep.add_argument("--store", default=None, help="Results database; data/genomic_context.sqlite when omitted")
-    parser_sweep.add_argument("--work-dir", default=None, help="Scratch directory (one genome + BLAST db live here transiently); a temp dir when omitted")
-    parser_sweep.add_argument("--no-resume", action="store_true", help="Re-search every genome, ignoring which are already recorded")
 
     # 17d. Synergy parser
     parser_syn = subparsers.add_parser("train-synergy", help="Train per-pathogen peptide-antibiotic synergy models from DBAASP FICI data")
@@ -1293,19 +1276,26 @@ def main() -> None:
         from sample.peptide_annotations import build_all
         summary = build_all(db_path_release=args.db, store_path=args.store,
                             limit=args.limit if args.limit and args.limit > 0 else None,
-                            resume=not args.no_resume, run_predictors=not args.no_predictors)
-        logger.info("build-annotations: annotated %d peptide(s) this run; store now holds %d.",
-                    summary["annotated"], summary["total_stored"])
+                            resume=not args.no_resume, run_predictors=not args.no_predictors,
+                            predictors_from=args.predictors_from)
+        logger.info("build-annotations: annotated %d peptide(s) this run; store now holds %d. "
+                    "Predictors: %d from CSV, %d computed live, %d with none.",
+                    summary["annotated"], summary["total_stored"],
+                    summary["predictors_from_csv"], summary["predictors_run_live"],
+                    summary["without_predictors"])
 
-    elif args.command == "build-pdb-homology":
-        from sample.pdb_homology import build_all as build_pdb_homology
-        summary = build_pdb_homology(
-            structures_dir=args.structures_dir, db_path_release=args.db, store_path=args.store,
-            limit=args.limit if args.limit and args.limit > 0 else None,
-            resume=not args.no_resume, min_identity=args.min_identity, sleep_seconds=args.sleep)
-        logger.info("build-pdb-homology: searched %d peptide(s) this run (%d with a PDB match); "
-                    "store now holds %d.", summary["processed"], summary["matched"],
-                    summary["total_stored"])
+    elif args.command == "generate-zenodo-dump":
+        from sample.zenodo_dump import build as build_zenodo_dump
+        summary = build_zenodo_dump(
+            bump=args.bump, set_version=args.set_version, dump_dir=args.dump_dir,
+            tarball=args.tarball, include_retired=args.include_retired,
+            archive=not args.no_archive, dry_run=args.dry_run)
+        logger.info("generate-zenodo-dump: v%s (was v%s), %d file(s), %.2f GB, %d stale file(s) "
+                    "removed%s.", summary["version"], summary["previous_version"],
+                    summary["total_files"], summary["total_bytes"] / 1e9,
+                    len(summary["stale_removed"]), " [dry run]" if summary["dry_run"] else "")
+        if summary["tarball"]:
+            logger.info("  %s\n  sha256 %s", summary["tarball"], summary["tarball_sha256"])
 
     elif args.command == "build-names":
         from sample.names import build_names
@@ -1358,63 +1348,6 @@ def main() -> None:
                 summary["new_peptides"], summary["assigned"], summary["inherited"],
                 summary["assigned"] - summary["inherited"], summary["new_clusters"],
                 "written" if summary["applied"] else "dry run, nothing written")
-
-    elif args.command == "genomic-context":
-        import json as _json
-        import tempfile
-
-        from sample.genomic_context import (build_context, download_refseq_genome, krona_svg,
-                                            load_domain_lookup, parse_assembly_summary)
-
-        with open(args.assembly_summary, encoding="utf-8") as fh:
-            genomes = parse_assembly_summary(fh.read())
-        if args.limit and args.limit > 0:
-            genomes = genomes[:args.limit]
-        logger.info("genomic-context: searching %d genome(s) for %s. This downloads each genome, "
-                    "runs tBLASTn, and deletes it -- a large, time-bound run.",
-                    len(genomes), args.peptide_id)
-
-        work_dir = args.work_dir or tempfile.mkdtemp(prefix="sample_gctx_")
-        peptide_fasta = os.path.join(work_dir, "query.faa")
-        os.makedirs(work_dir, exist_ok=True)
-        with open(peptide_fasta, "w", encoding="utf-8") as fh:
-            fh.write(f">{args.peptide_id}\n{args.peptide.strip()}\n")
-
-        result = build_context(peptide_fasta, genomes, download_refseq_genome, work_dir,
-                               domain_lookup=load_domain_lookup())
-        logger.info("genomic-context: %d hit(s) across %d/%d genomes.",
-                    len(result["hits"]), result["genomes_with_hits"], result["genomes_searched"])
-        if args.output:
-            os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
-            with open(args.output, "w", encoding="utf-8") as fh:
-                _json.dump(result, fh, indent=2)
-            logger.info("  Wrote %s", args.output)
-        if args.svg:
-            os.makedirs(os.path.dirname(os.path.abspath(args.svg)), exist_ok=True)
-            with open(args.svg, "w", encoding="utf-8") as fh:
-                fh.write(krona_svg(result["krona"]))
-            logger.info("  Wrote %s", args.svg)
-
-    elif args.command == "genomic-context-sweep":
-        import tempfile
-
-        from sample.genomic_context import (download_refseq_genome, parse_assembly_summary,
-                                            sweep_to_store)
-
-        with open(args.assembly_summary, encoding="utf-8") as fh:
-            genomes = parse_assembly_summary(fh.read())
-        logger.info("genomic-context-sweep: %d genome(s) available for %s (resume=%s). Each is "
-                    "downloaded, searched, written to the database, and deleted -- one at a time.",
-                    len(genomes), args.peptide_id, not args.no_resume)
-
-        work_dir = args.work_dir or tempfile.mkdtemp(prefix="sample_gctx_sweep_")
-        result = sweep_to_store(
-            args.peptide_id, args.peptide, genomes, download_refseq_genome, work_dir,
-            store_path=args.store, resume=not args.no_resume,
-            limit=args.limit if args.limit and args.limit > 0 else None)
-        logger.info("genomic-context-sweep: store holds %d hit(s) across %d/%d genomes for %s.",
-                    result["total_hits"], result["genomes_with_hits"], result["genomes_searched"],
-                    args.peptide_id)
 
     elif args.command == "train-synergy":
         from sample.synergy import train_synergy_models

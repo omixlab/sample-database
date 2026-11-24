@@ -324,22 +324,6 @@ sample.gene\_ontology module
    :show-inheritance:
    :undoc-members:
 
-sample.genomic\_context module
-------------------------------
-
-.. automodule:: sample.genomic_context
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-sample.genomic\_context\_store module
--------------------------------------
-
-.. automodule:: sample.genomic_context_store
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
 sample.identifiers module
 ---------------------------
 
@@ -480,14 +464,6 @@ sample.patents module
 ---------------------
 
 .. automodule:: sample.patents
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-sample.pdb_homology module
---------------------------
-
-.. automodule:: sample.pdb_homology
    :members:
    :show-inheritance:
    :undoc-members:
@@ -688,6 +664,14 @@ sample.validation\_rules module
 -------------------------------
 
 .. automodule:: sample.validation_rules
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+sample.zenodo\_dump module
+--------------------------
+
+.. automodule:: sample.zenodo_dump
    :members:
    :show-inheritance:
    :undoc-members:

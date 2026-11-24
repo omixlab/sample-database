@@ -221,10 +221,10 @@ ALL_ENVS = $(ENV_ACQUISITION) $(ENV_EXTRACTION) $(ENV_CHEM) $(ENV_ML) $(ENV_WEB)
 .PHONY: all dirs install clean test test-cov run-webserver run-worker \
 	pipeline-status pipeline-runs pipeline-finish pipeline-selftest _selftest_step \
         \
-        tool-update-families tool-genomic-context tool-admet tool-benchmark \
+        tool-update-families tool-admet tool-benchmark \
         tool-enrich-macrel tool-enrich-anticp2 tool-enrich-hemopi2 \
         tool-enrich-algpred2 \
-        sweep-genomic-context incremental-update \
+        incremental-update \
         sources-status curation-model-check \
         envs env-acquisition env-extraction env-chem env-ml env-web env-predictors env-fold env-full \
         env-langextract \
@@ -599,23 +599,6 @@ incremental-update: step_01_download_pubmed_papers_metadata step_02_download_sco
     step_14_enrich_extracted_peptides_with step_19_validate_extractions_using_manual \
     step_20_extract_repair_extractions step_21_merge_database_and_extracted
 	$(RUN) $(ENV_EXTRACTION) sample-cli incremental-update $(if $(DRY_RUN),--dry-run,)
-
-# RefSeq genomic context for one peptide (tBLASTn presence/absence, Krona-style sunburst).
-# SEQ=<peptide sequence>, ASSEMBLY=<path to an NCBI assembly_summary.txt listing the genomes>.
-# Downloads genomes as it goes; heed the disk/time note in KNOWN_ISSUES.md.
-tool-genomic-context:
-	$(RUN) $(ENV_WEB) sample-cli genomic-context --peptide "$(SEQ)" --assembly-summary "$(ASSEMBLY)"
-
-# RefSeq genomic-context SWEEP for one peptide, persisted to the database. Processes ONE genome at a
-# time -- download -> tBLASTn -> write hits to data/genomic_context.sqlite -> delete the genome --
-# and is resumable, so interrupting it and re-running continues where it stopped. The peptide page
-# reads the results from that database. SEQ=<sequence>, ID=<release entry_id>, ASSEMBLY=<NCBI
-# assembly_summary.txt>. LIMIT=<N> searches at most N new genomes this run (run in slices):
-#     make sweep-genomic-context SEQ=GIGKFL... ID=SAMPLE0000000001 ASSEMBLY=assembly_summary.txt LIMIT=50
-# This downloads genomes -- a large, time-bound run; heed the disk/time note in KNOWN_ISSUES.md.
-sweep-genomic-context:
-	$(RUN) $(ENV_WEB) sample-cli genomic-context-sweep --peptide "$(SEQ)" --peptide-id "$(ID)" \
-	    --assembly-summary "$(ASSEMBLY)" $(if $(LIMIT),--limit $(LIMIT),)
 
 # ADMET-lite summary for one peptide (sequence-derived physicochemistry + rule flags). SEQ=<seq>.
 tool-admet:
@@ -1213,8 +1196,22 @@ step_52_generate_paper_report:
 step_53_run_webserver:
 	$(call run_step,53,Run Webserver,$(RUN) $(ENV_WEB) python -m sample.worker & WORKER_PID=$$!; trap "kill $$WORKER_PID 2>/dev/null || true" EXIT INT TERM; $(RUN) $(ENV_WEB) sample-cli webserver,-d,data)
 
+# Build the Zenodo archive (sample/zenodo_dump.py). This was a `cp -r` chain until 2026-11-24;
+# `cp -r` MERGES into the existing directory and never deletes, so every file ever removed from the
+# project stayed in the archive for good -- 11 modules that no longer existed, 126 .pyc files, and
+# 28 step_*.sh scripts from a 28-step shell pipeline this has not been for a long time.
+# The command mirrors instead (rsync --delete --delete-excluded), excludes bytecode and the retired
+# models, resolves the environment.yml symlink, and writes VERSION + MANIFEST.json.
+#
+# BUMP raises the release version first, writing it to pyproject.toml, sample/__init__.py and
+# docs/conf.py together, and names the tarball after it (data/zenodo_dump-v<version>.tar.gz) so two
+# releases cannot share a filename:
+#     make step_54_generate_zenodo_dump BUMP=minor
+#     make step_54_generate_zenodo_dump BUMP=patch INCLUDE_RETIRED=1
+# Without BUMP the version is left alone and the archive is rebuilt in place.
+# The artifact check is MANIFEST.json, not the tarball, whose name now varies with the version.
 step_54_generate_zenodo_dump:
-	$(call run_step,54,Generate Zenodo Dump,cp -r data/sample_raw_release data/zenodo_dump/ && cp -r data/sample_enriched_release data/zenodo_dump/ && cp -r data/sample_final_release data/zenodo_dump/ && cp -r data/sample_decoy_databases data/zenodo_dump/ && cp data/sample.db data/zenodo_dump/ && cp README.md Makefile pyproject.toml environment.yml data/zenodo_dump/ && cp -r sample data/zenodo_dump/ && tar -czf data/zenodo_dump.tar.gz -C data zenodo_dump,-f,data/zenodo_dump.tar.gz)
+	$(call run_step,54,Generate Zenodo Dump,$(RUN) $(ENV_WEB) sample-cli generate-zenodo-dump $(if $(BUMP),--bump $(BUMP),) $(if $(INCLUDE_RETIRED),--include-retired,),-f,data/zenodo_dump/MANIFEST.json)
 
 docs:
 	@echo "=== Building HTML documentation ==="

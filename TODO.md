@@ -10,13 +10,6 @@ alone — see `DECISIONS.md`'s project rules.
 
 ## Feature follow-ups (the core is built; these finish it)
 
-- [ ] **RefSeq genomic context — run the sweep** (the code is done; this is the manual run). The
-      resumable, database-backed sweep is built: `sample-cli genomic-context-sweep` /
-      `make sweep-genomic-context` processes **one genome at a time** — download → tBLASTn (≥95%
-      coverage AND identity) → write hits to `data/genomic_context.sqlite`
-      (`sample.genomic_context_store`) → delete the genome — and skips genomes already recorded, so it
-      can run in slices (`LIMIT=N`). The peptide page reads the sunburst straight from that database.
-      What remains is running it (large downloads → disk/time; drive it with `LIMIT`).
 - [x] **ADMET membrane permeability — resolved by indexing CycPeptMPDB, not by a model.** A model
       trained on CycPeptMPDB (the public peptide-permeability data) does not transfer to this
       database's *linear* peptides — different chemistry (cyclic, N-methylated macrocycles) and a
@@ -59,9 +52,10 @@ alone — see `DECISIONS.md`'s project rules.
       (`sample.similarity.search`), and family-HMM hits (`hmmscan`). Circular peptides are flagged
       explicitly (`is_circular` + a caveat) rather than having their sequence-based results presented
       as if they were linear. Resumable, stored in `data/peptide_annotations.sqlite`, and read by the
-      peptide page. **Remaining: run the batch over the full ~34k-peptide corpus** — code-ready,
-      calls six tools per peptide (some slow), a real time commitment like the RefSeq sweep, left
-      for a deliberate run rather than started here.
+      peptide page. **Run in full on 2026-11-24: all 55,879 non-decoy peptides are annotated.**
+      36 minutes, because `--predictors-from` reused the predictor columns already in
+      `final_dataset.csv` under a sequence-identity guard (55,879 matched, 0 dropped) instead of
+      re-running four external tools over the corpus.
 - [ ] **Immunogenicity, IEDB epitope hits (B-cell, T-cell, MHC) — two real candidates, each gated
       on a specific thing, confirmed rather than assumed (2026-08-14).** `mhcflurry` (openvax,
       pip-installable, peer-reviewed, actively maintained pan-allele MHC-I binding predictor) is
